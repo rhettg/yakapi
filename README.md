@@ -1,2 +1,3 @@
-# batteries
-Batteries Not Included, An Action Building Rover Project
+# Batteries Not Included
+
+An Action Building Rover Project
