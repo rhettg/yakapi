@@ -6,6 +6,10 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func home(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +28,16 @@ func init() {
 	startTime = time.Now()
 }
 
+var (
+	opsProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "batteries_processed_ops_total",
+		Help: "The total number of processed requests",
+	})
+)
+
 func homev1(w http.ResponseWriter, r *http.Request) {
+	opsProcessed.Inc()
+
 	w.Header().Set("Content-Type", "application/json")
 	resp := struct {
 		Name      string     `json:"name"`
@@ -36,6 +49,7 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 		Resources: []resource{
 			{Name: "operator", Ref: "https://t.me/rhettg"},
 			{Name: "project", Ref: "https://github.com/rhettg/batteries"},
+			{Name: "metrics", Ref: "/metrics"},
 		},
 	}
 
@@ -47,8 +61,16 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "batteries_uptime_seconds",
+		Help: "The uptime of the batteries service",
+	}, func() float64 {
+		return float64(time.Since(startTime).Seconds())
+	})
+
 	http.HandleFunc("/", home)
 	http.HandleFunc("/v1", homev1)
+	http.Handle("/metrics", promhttp.Handler())
 
 	http.ListenAndServe(":8090", nil)
 }
