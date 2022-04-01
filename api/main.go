@@ -7,9 +7,12 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	mw "github.com/rhettg/batteries/api/internal/mw"
 )
 
 func home(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +64,11 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logger, _ := zap.NewDevelopment()
+	defer logger.Sync() // flushes buffer, if any
+	log := logger.Sugar()
+	log.Infow("starting", "version", "1.0.0")
+
 	promauto.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "batteries_uptime_seconds",
 		Help: "The uptime of the batteries service",
@@ -68,9 +76,11 @@ func main() {
 		return float64(time.Since(startTime).Seconds())
 	})
 
-	http.HandleFunc("/", home)
-	http.HandleFunc("/v1", homev1)
-	http.Handle("/metrics", promhttp.Handler())
+	logmw := mw.New(logger)
+
+	http.Handle("/", logmw(http.HandlerFunc(home)))
+	http.Handle("/v1", logmw(http.HandlerFunc(homev1)))
+	http.Handle("/metrics", logmw(promhttp.Handler()))
 
 	http.ListenAndServe(":8090", nil)
 }
