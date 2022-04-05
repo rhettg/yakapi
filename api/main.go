@@ -82,5 +82,5 @@ func main() {
 	http.Handle("/v1", logmw(http.HandlerFunc(homev1)))
 	http.Handle("/metrics", logmw(promhttp.Handler()))
 
-	http.ListenAndServe(":8090", nil)
+	http.ListenAndServe(":8080", nil)
 }

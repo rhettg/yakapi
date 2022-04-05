@@ -10,3 +10,9 @@ services:
       - "/dev/bus/usb:/dev/bus/usb"
     device_cgroup_rules:
       - "c 189:* rmw"
+  yakapi:
+    build:
+      context: api/
+      dockerfile: Dockerfile
+    ports:
+      - "80:8080"
