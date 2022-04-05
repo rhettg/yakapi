@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	mw "github.com/rhettg/batteries/api/internal/mw"
+	mw "github.com/rhettg/batteries/yakapi/internal/mw"
 )
 
 func home(w http.ResponseWriter, r *http.Request) {

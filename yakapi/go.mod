@@ -1,4 +1,4 @@
-module github.com/rhettg/batteries/api
+module github.com/rhettg/batteries/yakapi
 
 go 1.17
 
