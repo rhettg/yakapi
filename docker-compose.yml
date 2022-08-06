@@ -1,18 +1,25 @@
 version: "3.3"  # optional since v1.27.0
 services:
-  depthai:
+  oakd:
     #image: luxonis/depthai-library:v2.14.0.0
-    image: luxonis/depthai-library:multiarch
+    #image: luxonis/depthai-library:multiarch
+    image: luxonis/depthai-library:latest
+    restart: unless-stopped
     privileged: true
     volumes:
       - .:/code
-    devices: 
+      - /var/batteries/capture:/var/batteries/capture
       - "/dev/bus/usb:/dev/bus/usb"
     device_cgroup_rules:
       - "c 189:* rmw"
+    ports:
+      - "8001:8001"
+    environment:
+      - CAPTURE_PATH=/var/batteries/capture
+    command: /code/oakd/run.py
   yakapi:
     build:
-      context: api/
+      context: yakapi/
       dockerfile: Dockerfile
     ports:
       - "80:8080"
