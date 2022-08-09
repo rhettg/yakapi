@@ -6,8 +6,6 @@ import cv2
 import depthai as dai
 import http.server
 
-# Create pipeline
-
 def setup_pipeline(pipeline):
     camRgb = pipeline.create(dai.node.ColorCamera)
     camRgb.setBoardSocket(dai.CameraBoardSocket.RGB)
@@ -15,13 +13,9 @@ def setup_pipeline(pipeline):
     camRgb.setVideoSize(640, 480)
     camRgb.setFps(5)
 
-    #imgAdj = pipeline.create(dai.node.ImageManip)
-    #imgAdj.setResize(640, 480)
-    #camRgb.video.link(imgAdj.inputImage)
 
     videoEnc = pipeline.create(dai.node.VideoEncoder)
     videoEnc.setDefaultProfilePreset(camRgb.getFps(), dai.VideoEncoderProperties.Profile.MJPEG)
-    #imgAdj.out.link(videoEnc.input)
     camRgb.video.link(videoEnc.input)
 
     xoutJpeg = pipeline.create(dai.node.XLinkOut)
@@ -59,7 +53,6 @@ def build_handler(device):
             for k, v in request_headers().items():
                 self.send_header(k, v)
 
-            print("headers sent")
             while True:
                 frame = qJpg.get()
 
