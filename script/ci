@@ -1,0 +1,9 @@
+#!/bin/bash
+set -xe
+
+echo "Executing: $@"
+# Set a default value for the environment variable
+SERVER=${SERVER:=bni}
+COMMAND="$@"
+
+curl http://${SERVER}/v1/ci -H "Content-Type: application/json" -X POST -d "{\"command\": \"$COMMAND\"}"
