@@ -1,0 +1,16 @@
+---
+name: Trying a deploy pattern
+on:
+  push:
+    branches:
+      - 'main'
+      - 'rhettg-*'
+jobs: 
+  deploy:
+    steps:
+    - name: Tailscale
+      uses: tailscale/github-action@v1
+      with:
+        authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+    - uses: actions/checkout@v3
+    - run: curl -v http://yak-prime/v1
