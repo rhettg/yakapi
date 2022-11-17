@@ -1,5 +1,6 @@
 ---
-name: Trying a deploy pattern
+name: deploy-yak-prime
+run-name: Deploying to yak-prime
 on:
   push:
     branches:
@@ -7,6 +8,7 @@ on:
       - 'rhettg-*'
 jobs: 
   deploy:
+    runs-on: ubuntu-latest
     steps:
     - name: Tailscale
       uses: tailscale/github-action@v1
