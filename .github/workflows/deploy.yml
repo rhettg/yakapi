@@ -19,5 +19,5 @@ jobs:
       with:
         go-version: '^1.19.2'
     - run: cd yakapi && go build -o bin/yakapi.${{ github.sha }} .
-    - run: scp yakapi/bin/* yak-prime:/var/yakapi
+    - run: scp -o 'StrictHostKeyChecking no' yakapi/bin/* github@yak-prime:/var/yakapi
     - run: curl -v http://yak-prime/v1
