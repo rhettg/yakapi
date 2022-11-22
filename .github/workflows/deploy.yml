@@ -1,6 +1,6 @@
 ---
 name: deploy-yak-prime
-run-name: Deploying to yak-prime
+run-name: Really deploying to yak-prime
 on:
   push:
     branches:
