@@ -22,5 +22,4 @@ jobs:
         cache-dependency-path: yakapi/go.sum
     - run: cd yakapi && go build -o bin/yakapi.${{ github.sha }} .
     - run: scp -o 'StrictHostKeyChecking no' yakapi/bin/* github@yak-prime:/var/yakapi
-    #-run: tailscale file cp yakapi/bin/yakapi.* yak-prime:
     - run: curl -v http://yak-prime/v1
