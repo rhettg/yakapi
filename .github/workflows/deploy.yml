@@ -1,14 +1,17 @@
 ---
 name: deploy-yak-prime
-run-name: Really deploying to yak-prime
+run-name: deploying to yak-prime
 on:
   push:
     branches:
       - 'main'
       - 'rhettg-*'
+  workflow_dispatch:
 jobs: 
-  deploy:
+  deployment:
     runs-on: ubuntu-latest
+    environment: yak-prime
+    concurrency: yak-prime
     steps:
     - name: Tailscale
       uses: tailscale/github-action@v1
