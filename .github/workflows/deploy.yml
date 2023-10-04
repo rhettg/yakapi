@@ -13,13 +13,13 @@ jobs:
     concurrency: yak-prime
     steps:
     - name: Tailscale
-      uses: tailscale/github-action@v1
+      uses: tailscale/github-action@v2
       with:
         authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
     - uses: actions/checkout@v3
     - uses: actions/setup-go@v3
       with:
-        go-version: '^1.19.2'
+        go-version: '^1.21.1'
         cache: true
         cache-dependency-path: yakapi/go.sum
     - run: cd yakapi && go build -o bin/yakapi.${{ github.sha }} .
