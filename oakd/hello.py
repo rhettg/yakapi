@@ -34,12 +34,10 @@ with dai.Device(pipeline) as device:
     print("booted")
     time.sleep(3)
 
+    dirName = os.getenv("CAPTURE_PATH")
+
     # Output queue will be used to get the rgb frames from the output defined above
     qRgb = device.getOutputQueue(name="rgb", maxSize=30, blocking=False)
-
-    # Make sure the destination path is present before starting to store the examples
-    dirName = os.getenv("CAPTURE_PATH")
-    # Path(dirName).mkdir(parents=True, exist_ok=True)
 
     print("starting loop...")
     while True:
