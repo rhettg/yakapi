@@ -11,6 +11,7 @@ pipeline = dai.Pipeline()
 # Define sources and outputs
 camRgb = pipeline.create(dai.node.ColorCamera)
 xoutRgb = pipeline.create(dai.node.XLinkOut)
+imageManip = pipeline.create(dai.node.ImageManip)
 
 xoutRgb.setStreamName("rgb")
 
@@ -19,8 +20,14 @@ camRgb.setBoardSocket(dai.CameraBoardSocket.RGB)
 camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
 camRgb.setFps(1)
 
+# Center crop/resize to 512x512
+imageManip.initialConfig.setCropRect(0, 0, 1, 1)
+imageManip.initialConfig.setResize(512, 512)
+imageManip.initialConfig.setKeepAspectRatio(False)
+
 # Linking
-camRgb.video.link(xoutRgb.input)
+camRgb.video.link(imageManip.inputImage)
+imageManip.out.link(xoutRgb.input)
 
 # Connect to device and start pipeline
 with dai.Device(pipeline) as device:
