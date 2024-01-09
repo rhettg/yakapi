@@ -8,15 +8,16 @@ services:
     privileged: true
     volumes:
       - .:/code
-      - /var/batteries/capture:/var/batteries/capture
+      - /data/yak-storage/:/data/yak-storage
       - "/dev/bus/usb:/dev/bus/usb"
     device_cgroup_rules:
       - "c 189:* rmw"
     ports:
       - "8001:8001"
     environment:
-      - CAPTURE_PATH=/var/batteries/capture
-    command: /code/oakd/run.py
+      - CAPTURE_PATH=/data/yak-storage
+    #command: /code/oakd/run.py
+    command: /code/oakd/hello.py
   yakapi:
     build:
       context: yakapi/
