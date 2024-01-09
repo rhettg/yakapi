@@ -1,3 +1,5 @@
+#!/usr/local/bin/python3
+import os
 import time
 from pathlib import Path
 import cv2
@@ -29,8 +31,8 @@ with dai.Device(pipeline) as device:
     qRgb = device.getOutputQueue(name="rgb", maxSize=30, blocking=False)
 
     # Make sure the destination path is present before starting to store the examples
-    dirName = "rgb_data"
-    Path(dirName).mkdir(parents=True, exist_ok=True)
+    dirName = os.getenv("CAPTURE_PATH")
+    # Path(dirName).mkdir(parents=True, exist_ok=True)
 
     print("starting loop...")
     while True:
@@ -38,7 +40,7 @@ with dai.Device(pipeline) as device:
         inRgb = qRgb.tryGet()  # Non-blocking call, will return a new data that has arrived or None otherwise
 
         if inRgb is not None:
-            print("writing frame")
+            print(f"writing frame to {dirName}")
             cv2.imwrite(f"{dirName}/capture.jpg", inRgb.getCvFrame())
 
         time.sleep(0.100)
