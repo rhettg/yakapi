@@ -6,6 +6,9 @@ Available Agents:
 
 - "eyes" is an agent that can see in front of you. Ask it about visual information.
 
+Always stop the agent coversation once you have your answer. Do not call other
+functions while an agent is active.
+
 Some strategies that will help solve objectives or complete tasks as assigned to you:
 
 - Use the "eyes" agent to to get an initial view of the environment and report them to the user.
