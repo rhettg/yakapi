@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/rhettg/agent"
 )
@@ -28,26 +29,32 @@ func insertEyesImage(nextStep agent.CompletionFunc) agent.CompletionFunc {
 			return nextStep(ctx, msgs, tdfs)
 		}
 
-		var imgData []byte
-		var err error
-
 		for {
-			imgData, err = grabImage(context.Background())
+			imgData, err := grabImage(context.Background())
 			if err != nil {
 				return nil, err
 			}
 
 			slog.Info("grabbed image", "size", len(imgData))
-			displayImage(imgData)
 
 			// Sometimes we get a bad image
-			if len(imgData) > 4096 {
-				break
+			if len(imgData) <= 4096 {
+				slog.Warn("truncated image, retrying")
+				time.Sleep(200 * time.Millisecond)
+				continue
 			}
-		}
 
-		msg.AddImage("eyes.jpg", imgData)
-		return nextStep(ctx, msgs, tdfs)
+			overlayImgData, err := overlay(imgData)
+			if err != nil {
+				return nil, err
+			}
+
+			slog.Info("overlayed image", "size", len(overlayImgData))
+
+			displayImage(overlayImgData)
+			msg.AddImage("eyes.jpg", overlayImgData)
+			return nextStep(ctx, msgs, tdfs)
+		}
 	}
 }
 

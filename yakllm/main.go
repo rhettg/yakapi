@@ -6,6 +6,11 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -55,8 +60,13 @@ func main() {
 
 	client := openai.NewClient(apiKey)
 
-	eyesP := openaichat.New(client, "gpt-4-vision-preview", openaichat.WithMaxTokens(512))
-	p := openaichat.New(client, "gpt-4-1106-preview")
+	eyesP := openaichat.New(client, "gpt-4-vision-preview",
+		openaichat.WithMaxTokens(512),
+		openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
+	)
+	p := openaichat.New(client, "gpt-4-1106-preview",
+		openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
+	)
 
 	as := agentset.New()
 	as.Add("eyes", EyesAgentStartFunc(eyesP))
@@ -140,6 +150,57 @@ func grabImage(ctx context.Context) ([]byte, error) {
 
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)
+}
+
+func overlay(jpgIn []byte) ([]byte, error) {
+	// Load the overlay image
+	// TODO: no reason to load it over and over
+	overlayFile, err := os.Open("overlay.png")
+	if err != nil {
+		return nil, err
+	}
+	defer overlayFile.Close()
+
+	overlayImg, err := png.Decode(overlayFile)
+	if err != nil {
+		return nil, err
+	}
+
+	jpgReader := bytes.NewReader(jpgIn)
+	jpgImg, err := jpeg.Decode(jpgReader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new image for the composited result
+	result := image.NewRGBA(overlayImg.Bounds())
+
+	draw.Draw(result, result.Bounds(), &image.Uniform{color.RGBA{255, 255, 255, 255}}, image.Point{}, draw.Src)
+
+	// Draw the captured image onto the new image
+	dst := image.Rectangle{
+		Min: image.Point{
+			X: 0,
+			Y: 112,
+		},
+		Max: image.Point{
+			X: 512,
+			Y: 112 + 288,
+		},
+	}
+	draw.Draw(result, dst, jpgImg, image.Point{0, 0}, draw.Src)
+
+	// Draw the overlay onto the new image
+	draw.Draw(result, overlayImg.Bounds().Add(image.Point{X: 0, Y: 0}), overlayImg, image.Point{}, draw.Over)
+
+	buf := bytes.Buffer{}
+
+	err = jpeg.Encode(&buf, result, &jpeg.Options{Quality: 100})
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 var forwardCommand = "fwd"

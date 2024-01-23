@@ -43,3 +43,5 @@ require (
 	golang.org/x/text v0.13.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/rhettg/agent => /Users/rhettg/Projects/agent
