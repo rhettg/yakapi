@@ -251,6 +251,13 @@ var leftSchema = jsonschema.Definition{
 	},
 }
 
+const (
+	maxDistance = 500
+	minDistance = 10
+	maxAngle    = 180
+	minAngle    = 0
+)
+
 func forward(ctx context.Context, arguments string) (string, error) {
 	args := struct {
 		Distance int `json:"distance"`
@@ -258,6 +265,13 @@ func forward(ctx context.Context, arguments string) (string, error) {
 	err := json.Unmarshal([]byte(arguments), &args)
 	if err != nil {
 		return "", err
+	}
+
+	if args.Distance < minDistance {
+		return fmt.Sprintf("min distance is %d", minDistance), nil
+	}
+	if args.Distance > maxDistance {
+		return fmt.Sprintf("max distance is %d", maxDistance), nil
 	}
 
 	err = sendCommand(ctx, fmt.Sprintf("fwd %d", args.Distance))
@@ -278,6 +292,13 @@ func backward(ctx context.Context, arguments string) (string, error) {
 		return "", err
 	}
 
+	if args.Distance < minDistance {
+		return fmt.Sprintf("min distance is %d", minDistance), nil
+	}
+	if args.Distance > maxDistance {
+		return fmt.Sprintf("max distance is %d", maxDistance), nil
+	}
+
 	err = sendCommand(ctx, fmt.Sprintf("bck %d", args.Distance))
 	if err != nil {
 		return "", err
@@ -296,6 +317,13 @@ func left(ctx context.Context, arguments string) (string, error) {
 		return "", err
 	}
 
+	if args.Angle < minAngle {
+		return fmt.Sprintf("min angle is %d", minAngle), nil
+	}
+	if args.Angle > maxAngle {
+		return fmt.Sprintf("max angle is %d", maxAngle), nil
+	}
+
 	err = sendCommand(ctx, fmt.Sprintf("lt %d", args.Angle))
 	if err != nil {
 		return "", err
@@ -312,6 +340,13 @@ func right(ctx context.Context, arguments string) (string, error) {
 	err := json.Unmarshal([]byte(arguments), &args)
 	if err != nil {
 		return "", err
+	}
+
+	if args.Angle < minAngle {
+		return fmt.Sprintf("min angle is %d", minAngle), nil
+	}
+	if args.Angle > maxAngle {
+		return fmt.Sprintf("max angle is %d", maxAngle), nil
 	}
 
 	err = sendCommand(ctx, fmt.Sprintf("rt %d", args.Angle))
