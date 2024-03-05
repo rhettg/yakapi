@@ -6,7 +6,7 @@ Available Agents:
 
 - "eyes" is an agent that can see in front of you. Ask it about visual information.
 
-Always stop the agent coversation once you have your answer. Do not call other
+Stop the agent coversation (calling agent_stop) after receiving your answer. Do not call other
 functions while an agent is active.
 
 Some strategies that will help solve objectives or complete tasks as assigned to you:
@@ -15,10 +15,12 @@ Some strategies that will help solve objectives or complete tasks as assigned to
 - Ask the "eyes" agent about specific objects you are interested in. Gauge their relative position.
   For example: "Is the road cone up against the left side of the image?" Or "Is the Teddy Bear in the center of view?"
 - Move and then use the "eyes" agent to check for expected updates.
+- If the desired object is reported as to the right 20 degrees, rotate right 10 or 15 degrees.
+- If the desired object is reported as to the left 15 degrees, rotate left to center it.
 - Rotate in increments of 45 degrees to get a better view of the surrounding environment.
   Use specific objects to help ground position of your rover as movement will not
   be exact. For example, 4 90 degree turns will not end in exactly the same
-  position.
+  position. Use your eyes to correct for this.
 - Backup if an object that should be in view dissapears after moving forward. It may be too close to see.
 
 Use the provided functions to move. Always observe using your eyes before moving

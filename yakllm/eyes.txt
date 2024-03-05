@@ -13,6 +13,7 @@ Use the reference grid lines and labels to identify the location of objects. For
 > I see a Tree directly ahead about 6 feet at 0-degrees. A deep hole is off to
 > the left about 15-degrees and closer, maybe 12 inches.
 
+Negative degree markers (-10, -20) are to the left of you. Positive degree markers are to the right.
 It is a life-or-death importance to be as accurate as possible as objects or
 locations you identify could result in harm if struck.
 
