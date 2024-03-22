@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"strings"
 
@@ -48,82 +49,136 @@ Eyes, please describe the current scene in front of us, including the baby Yoda 
 `
 
 var evalPrompt = `
-You are evaluating the results of an AI vision system test. You will be provided
-with test results that include a prompt (what was asked of the vision system),
-reference description (what is actually in the image) as well as an AI generated
-description of the scene.
+You are evaluating the results of an AI vision system. You will be provided with
+test results that include a prompt (what was asked of the vision system), and an
+AI generated description of the scene.
 
 Think step-by-step and explain your reasoning. Consider how well the AI
 description describes the presence and location of the targetted object in the
-description of the scene. Compare numeric values only of the target object to
-determine how close they are to the expected results.  Ignore aspects of the ai
-description that are not relevant to the test or details that are not available
-in the reference description.
+description of the scene. Focus on numeric values only of the target object to
+determine the expected valuesresults.  Ignore aspects of the ai description that
+are not relevant to the test.
 
 Finally, include in your reply a JSON object, formatted in a markdown json code block, in the following format:
 
+` + "```json" + `
 {
-	"TargetCheck": true, // true or false if the ai description and the reference description agree the target exists.
-	"LeftRightCheck": true, // true or false if the ai description correctly identifies direction (left or right) of the target.
-	"DegreeCheck": true, // true or false if the ai description correctly identifies the degree of the target to within 5 degrees.
-	"DistanceCheck": true, // true or false if the ai description correctly identifies the distance of the doll to within 1 foot.
+	"TargetExists": true, // true if the ai description identifies the presence of the target.
+	"TargetDirection": "left", // which direction the ai description identifies the target to be in. Valid values: "left", "right", "center"
+	"TargetDegree": -10, // the ai description identifies the target to be at this degree. Negative values are to the left, positive values are to the right.
+	"DistanceInches": 28 // number of whole inches away from the target. Convert from units in the ai description.
+}
+` + "```\nDo not include fields without answers or leave them as empty strings or 0s."
+
+var evalCases = []evalCase{
+	{
+		ImageName: "iTerm2.BqxOKv.jpeg",
+		Description: description{
+			TargetExists:    true,
+			TargetDirection: "left",
+			TargetDegree:    -18,
+			DistanceInches:  4 * 12,
+		},
+	},
+	{
+		ImageName: "iTerm2.fCuCba.jpeg",
+		Description: description{
+			TargetExists:    true,
+			TargetDirection: "left",
+			TargetDegree:    -13,
+			DistanceInches:  3 * 12,
+		},
+	},
+	{
+		ImageName: "iTerm2.MzUeEc.jpeg",
+		Description: description{
+			TargetExists:    true,
+			TargetDirection: "left",
+			TargetDegree:    -11,
+			DistanceInches:  3 * 12,
+		},
+	},
+	{
+		ImageName: "iTerm2.OQALXt.jpeg",
+		Description: description{
+			TargetExists:    true,
+			TargetDirection: "right",
+			TargetDegree:    5,
+			DistanceInches:  6,
+		},
+	},
+	{
+		ImageName: "iTerm2.Ypo7l0.jpeg",
+		Description: description{
+			TargetExists:    false,
+			TargetDirection: "",
+			TargetDegree:    0,
+			DistanceInches:  0,
+		},
+	},
+	{
+		ImageName: "iTerm2.sZOXSN.jpeg",
+		Description: description{
+			TargetExists:    true,
+			TargetDirection: "center",
+			TargetDegree:    0,
+			DistanceInches:  3 * 12,
+		},
+	},
+	{
+		ImageName: "iTerm2.z8lgU1.jpeg",
+		Description: description{
+			TargetExists:    false,
+			TargetDirection: "",
+			TargetDegree:    0,
+			DistanceInches:  0,
+		},
+	},
 }
 
-If the reference description indicates no target is expected and the ai correctly identifies the target is not in view, set all values to true.
+type evalCase struct {
+	ImageName string
 
-Example step-by-step evaluation:
+	Description description
+}
 
-	The prompt indicates the target is a small squirrel. The ai description
-	mentions seeing a squirrel about 3 feet away and about 10 degrees to the
-	right. The reference description mentions the squirrel should be 20 feet away and 15 degrees to the right.
-
-	TargetCheck: true because the target squirrel was correctly identified
-	LeftRightCheck: true because the target was correctly identified as being to the right
-	DegreeCheck: true because the target was identified as being 10 degrees which is within 5 degrees of the correct 15 degree value.
-	DistanceCheck: false because the target was identified as being 3 feet away which is not within 1 foot of the correct 20 foot value.
-`
-
-var images = map[string]string{
-	"iTerm2.BqxOKv.jpeg": "yoda doll on far left, -20 to -15 degrees. 4 feet away",
-	"iTerm2.fCuCba.jpeg": "yoda doll on left, -13 degrees. 3 feet away",
-	"iTerm2.MzUeEc.jpeg": "yoda doll on left, -11 degrees. 3 feet away",
-	"iTerm2.OQALXt.jpeg": "yoda doll just on the left -5 degrees. close, about 24 inches awway",
-	"iTerm2.QsEvrF.jpeg": "very close yoda doll, a few inches away. center to 5 degrees on the right",
-	"iTerm2.Ypo7l0.jpeg": "no yoda doll, furniture",
-	"iTerm2.sZOXSN.jpeg": "center yoda doll, 3 feet away",
-	"iTerm2.z8lgU1.jpeg": "no yoda doll, whiteout, desk chair",
+type description struct {
+	TargetExists    bool
+	TargetDirection string
+	TargetDegree    int
+	DistanceInches  int
 }
 
 type evalResult struct {
-	ImageName        string
-	ImageDescription string
+	ImageName string
 
 	Reply string
 
-	TargetCheck    bool
-	LeftRightCheck bool
-	DegreeCheck    bool
-	DistanceCheck  bool
-	Score          float64
+	Description description
 }
 
-func (ev *evalResult) CalculateScore() {
-	if !ev.TargetCheck {
-		ev.Score = 0.0
-		return
+func calculateScore(ref description, ai description) float64 {
+	if !ref.TargetExists && !ai.TargetExists {
+		return 1.0
 	}
 
-	ev.Score += 0.50
+	score := 0.0
 
-	if ev.LeftRightCheck {
-		ev.Score += 0.25
+	if ref.TargetExists == ai.TargetExists {
+		score += 0.50
 	}
-	if ev.DegreeCheck {
-		ev.Score += 0.15
+
+	if ref.TargetDirection == ai.TargetDirection {
+		score += 0.25
 	}
-	if ev.DistanceCheck {
-		ev.Score += 0.10
-	}
+
+	degreeError := math.Abs(float64(ref.TargetDegree - ai.TargetDegree))
+	score += math.Max(0, 1-(degreeError/10.0)) * 0.15
+
+	distanceError := math.Abs(float64(ref.DistanceInches - ai.DistanceInches))
+	score += math.Max(0, 1-(distanceError/12.0)) * 0.10
+
+	return score
 }
 
 func main() {
@@ -134,11 +189,17 @@ func main() {
 
 	client := openai.NewClient(apiKey)
 
-	/*
+	if false {
 		ev := evalResult{
-			ImageName:        "iTerm2.BqxOKv.jpeg",
-			ImageDescription: "yoda doll just on the left -5 degrees. close, about 24 inches away",
-			Reply:            "I see a Baby Yoda doll standing directly ahead about 3 feet at 0-degrees. To the right of Baby Yoda, around 10-degrees, there is a tall object, possibly a cardboard box or a game packaging, that is aligned vertically and is touching the right edge at the bottom of the image. To the far right, at approximately 20-degrees, a partial view of what appears to be a black bag or case is visible, leaning against the vertical surface in the background. The floor appears to be a hard surface with a light color and some reflective qualities.",
+			ImageName: "iTerm2.BqxOKv.jpeg",
+			Reply:     "I see a Baby Yoda doll to the left, at about -20 degrees, roughly 4 feet away. Directly ahead, there is a gap between some black panels or furniture at 0-degrees, around 6 feet away. To the right at approximately 15 degrees, there's a brown couch or similar furniture, also about 6 feet in the distance. The floor appears to be a smooth surface, suitable for rolling.",
+		}
+
+		var ec evalCase
+		for _, c := range evalCases {
+			if c.ImageName == ev.ImageName {
+				ec = c
+			}
 		}
 
 		err := evaluate(client, prompt, &ev)
@@ -146,52 +207,57 @@ func main() {
 			errorf("failed to evaluate test: %v\n", err)
 		}
 
-		ev.CalculateScore()
-		fmt.Println("Score:", ev.Score)
-		fmt.Printf("Target Check: %v\n", ev.TargetCheck)
-		fmt.Printf("Left Right Check: %v\n", ev.LeftRightCheck)
-		fmt.Printf("Degree Check: %v\n", ev.DegreeCheck)
-		fmt.Printf("Distance Check: %v\n", ev.DistanceCheck)
+		fmt.Printf("Target: %v (%v)\n", ev.Description.TargetExists, ec.Description.TargetExists)
+		fmt.Printf("Target Direction: %v (vs %v)\n", ev.Description.TargetDirection, ec.Description.TargetDirection)
+		fmt.Printf("Target Degree: %v (vs %v)\n", ev.Description.TargetDegree, ec.Description.TargetDegree)
+		fmt.Printf("Distance: %v (vs %v)\n", ev.Description.DistanceInches, ec.Description.DistanceInches)
+		score := calculateScore(ec.Description, ev.Description)
+		fmt.Println("Score:", score)
 		os.Exit(0)
-	*/
+	}
 
-	evals := make([]evalResult, 0)
+	total := 0.0
 
-	for name, description := range images {
-		fmt.Println(name, description)
+	for _, ec := range evalCases {
+		fmt.Println(ec.ImageName)
 
 		ev := evalResult{
-			ImageName:        name,
-			ImageDescription: description,
+			ImageName: ec.ImageName,
 		}
 
+		fmt.Println("Asking eyes system...")
 		err := eyes(client, &ev)
 		if err != nil {
 			errorf("failed to run test: %v\n", err)
 		}
+		fmt.Println(ev.Reply)
 
 		err = evaluate(client, prompt, &ev)
 		if err != nil {
 			errorf("failed to evaluate test: %v\n", err)
 		}
 
-		ev.CalculateScore()
-		fmt.Println("Score:", ev.Score)
-		evals = append(evals, ev)
+		score := calculateScore(ec.Description, ev.Description)
+		fmt.Printf("Case: %v\n", ec.Description)
+		fmt.Println("Score:", score)
 		fmt.Println()
+		total += score
 	}
+	fmt.Println("Overall Score: ", total/float64(len(evalCases)))
 
 	// Marshall evals to yaml
-	rf, err := os.Create("evals.yaml")
-	if err != nil {
-		errorf("failed to create evals.yaml: %v\n", err)
-	}
+	/*
+		rf, err := os.Create("evals.yaml")
+		if err != nil {
+			errorf("failed to create evals.yaml: %v\n", err)
+		}
 
-	err = yaml.NewEncoder(rf).Encode(evals)
-	if err != nil {
-		errorf("failed to encode evals: %v\n", err)
-	}
-	rf.Close()
+		err = yaml.NewEncoder(rf).Encode(evals)
+		if err != nil {
+			errorf("failed to encode evals: %v\n", err)
+		}
+		rf.Close()
+	*/
 }
 
 func evaluate(client *openai.Client, prompt string, ev *evalResult) error {
@@ -203,13 +269,11 @@ func evaluate(client *openai.Client, prompt string, ev *evalResult) error {
 	ea.Add(agent.RoleSystem, evalPrompt)
 	b := bytes.Buffer{}
 	err := yaml.NewEncoder(&b).Encode(struct {
-		Prompt               string
-		AIDescription        string `yaml:"ai_description"`
-		ReferenceDescription string `yaml:"reference_description"`
+		Prompt        string
+		AIDescription string `yaml:"ai_description"`
 	}{
-		Prompt:               prompt,
-		AIDescription:        ev.Reply,
-		ReferenceDescription: ev.ImageDescription,
+		Prompt:        prompt,
+		AIDescription: ev.Reply,
 	})
 	if err != nil {
 		return err
@@ -233,7 +297,7 @@ func evaluate(client *openai.Client, prompt string, ev *evalResult) error {
 		return err
 	}
 
-	err = json.Unmarshal([]byte(jsonReply), ev)
+	err = json.Unmarshal([]byte(jsonReply), &ev.Description)
 	if err != nil {
 		return err
 	}
