@@ -65,12 +65,21 @@ Finally, include in your reply a JSON object, formatted in a markdown json code 
 
 ` + "```json" + `
 {
-	"TargetExists": true, // true if the ai description identifies the presence of the target.
-	"TargetDirection": "left", // which direction the ai description identifies the target to be in. Valid values: "left", "right", "center"
-	"TargetDegree": -10, // the ai description identifies the target to be at this degree. Negative values are to the left, positive values are to the right.
-	"DistanceInches": 28 // number of whole inches away from the target. Convert from units in the ai description.
+	"TargetExists": true,
+	"TargetDirection": "left",
+	"TargetDegree": -10,
+	"DistanceInches": 28
 }
-` + "```\nDo not include fields without answers or leave them as empty strings or 0s."
+` + "```\n" + `
+The fields are:
+
+* TargetExists: true if the ai description identifies the presence of the target.
+* TargetDirection: which direction the ai description identifies the target to be in. Valid values: "left", "right", "center"
+* TargetDegree: the ai description identifies the target to be at this degree. Negative values are to the left, positive values are to the right.
+* DistanceInches: number of whole inches away from the target. Convert from units in the ai description.
+
+Do not include fields without answers or leave them as empty strings or 0s.
+`
 
 var evalCases = []evalCase{
 	{
@@ -147,8 +156,8 @@ type evalCase struct {
 type description struct {
 	TargetExists    bool
 	TargetDirection string
-	TargetDegree    int
-	DistanceInches  int
+	TargetDegree    float64
+	DistanceInches  float64
 }
 
 type evalResult struct {
