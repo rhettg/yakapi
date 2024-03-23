@@ -45,7 +45,9 @@ func extractJSONBlock(text string) string {
 var eyesSystemPrompt string
 
 var prompt = `
-Eyes, please describe the current scene in front of us, including the baby Yoda doll and any other significant objects or features.
+Eyes, please describe the current scene in front of us including any significant
+objects or features. We're looking for a Baby Yoda doll which may or may not be
+present.
 `
 
 var evalPrompt = `
