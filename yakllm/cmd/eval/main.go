@@ -113,9 +113,9 @@ var evalCases = []evalCase{
 		ImageName: "iTerm2.OQALXt.jpeg",
 		Description: description{
 			TargetExists:    true,
-			TargetDirection: "right",
+			TargetDirection: "left",
 			TargetDegree:    5,
-			DistanceInches:  6,
+			DistanceInches:  24,
 		},
 	},
 	{
