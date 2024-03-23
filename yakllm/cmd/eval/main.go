@@ -263,6 +263,7 @@ func main() {
 func evaluate(client *openai.Client, prompt string, ev *evalResult) error {
 	ep := openaichat.New(client, "gpt-3.5-turbo",
 		openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
+		openaichat.WithTemperature(0.0),
 	)
 
 	ea := agent.New(ep)
@@ -309,6 +310,7 @@ func eyes(client *openai.Client, ev *evalResult) error {
 	p := openaichat.New(client, "gpt-4-vision-preview",
 		openaichat.WithMaxTokens(512),
 		openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
+		openaichat.WithTemperature(0.0),
 	)
 
 	a := agent.New(p)
