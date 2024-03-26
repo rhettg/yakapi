@@ -66,7 +66,6 @@ Finally, include in your reply a JSON object, formatted in a markdown json code 
 ` + "```json" + `
 {
 	"TargetExists": true,
-	"TargetDirection": "left",
 	"TargetDegree": -10,
 	"DistanceInches": 28
 }
@@ -74,7 +73,6 @@ Finally, include in your reply a JSON object, formatted in a markdown json code 
 The fields are:
 
 * TargetExists: true if the ai description identifies the presence of the target.
-* TargetDirection: which direction the ai description identifies the target to be in. Valid values: "left", "right", "center"
 * TargetDegree: the ai description identifies the target to be at this degree. Negative values are to the left, positive values are to the right.
 * DistanceInches: number of whole inches away from the target. Convert from units in the ai description.
 
@@ -85,64 +83,57 @@ var evalCases = []evalCase{
 	{
 		ImageName: "iTerm2.BqxOKv.jpeg",
 		Description: description{
-			TargetExists:    true,
-			TargetDirection: "left",
-			TargetDegree:    -18,
-			DistanceInches:  4 * 12,
+			TargetExists:   true,
+			TargetDegree:   -18,
+			DistanceInches: 4 * 12,
 		},
 	},
 	{
 		ImageName: "iTerm2.fCuCba.jpeg",
 		Description: description{
-			TargetExists:    true,
-			TargetDirection: "left",
-			TargetDegree:    -13,
-			DistanceInches:  3 * 12,
+			TargetExists:   true,
+			TargetDegree:   -13,
+			DistanceInches: 3 * 12,
 		},
 	},
 	{
 		ImageName: "iTerm2.MzUeEc.jpeg",
 		Description: description{
-			TargetExists:    true,
-			TargetDirection: "left",
-			TargetDegree:    -11,
-			DistanceInches:  3 * 12,
+			TargetExists:   true,
+			TargetDegree:   -11,
+			DistanceInches: 3 * 12,
 		},
 	},
 	{
 		ImageName: "iTerm2.OQALXt.jpeg",
 		Description: description{
-			TargetExists:    true,
-			TargetDirection: "left",
-			TargetDegree:    5,
-			DistanceInches:  24,
+			TargetExists:   true,
+			TargetDegree:   5,
+			DistanceInches: 24,
 		},
 	},
 	{
 		ImageName: "iTerm2.Ypo7l0.jpeg",
 		Description: description{
-			TargetExists:    false,
-			TargetDirection: "",
-			TargetDegree:    0,
-			DistanceInches:  0,
+			TargetExists:   false,
+			TargetDegree:   0,
+			DistanceInches: 0,
 		},
 	},
 	{
 		ImageName: "iTerm2.sZOXSN.jpeg",
 		Description: description{
-			TargetExists:    true,
-			TargetDirection: "center",
-			TargetDegree:    0,
-			DistanceInches:  3 * 12,
+			TargetExists:   true,
+			TargetDegree:   0,
+			DistanceInches: 3 * 12,
 		},
 	},
 	{
 		ImageName: "iTerm2.z8lgU1.jpeg",
 		Description: description{
-			TargetExists:    false,
-			TargetDirection: "",
-			TargetDegree:    0,
-			DistanceInches:  0,
+			TargetExists:   false,
+			TargetDegree:   0,
+			DistanceInches: 0,
 		},
 	},
 }
@@ -154,10 +145,9 @@ type evalCase struct {
 }
 
 type description struct {
-	TargetExists    bool
-	TargetDirection string
-	TargetDegree    float64
-	DistanceInches  float64
+	TargetExists   bool
+	TargetDegree   float64
+	DistanceInches float64
 }
 
 type evalResult struct {
@@ -173,21 +163,21 @@ func calculateScore(ref description, ai description) float64 {
 		return 1.0
 	}
 
+	if !ref.TargetExists && ai.TargetExists {
+		return 0.0
+	}
+
 	score := 0.0
 
 	if ref.TargetExists == ai.TargetExists {
 		score += 0.50
 	}
 
-	if ref.TargetDirection == ai.TargetDirection {
-		score += 0.25
-	}
-
 	degreeError := math.Abs(float64(ref.TargetDegree - ai.TargetDegree))
-	score += math.Max(0, 1-(degreeError/10.0)) * 0.15
+	score += math.Max(0, 1-(degreeError/10.0)) * 0.35
 
 	distanceError := math.Abs(float64(ref.DistanceInches - ai.DistanceInches))
-	score += math.Max(0, 1-(distanceError/12.0)) * 0.10
+	score += math.Max(0, 1-(distanceError/12.0)) * 0.15
 
 	return score
 }
@@ -219,7 +209,6 @@ func main() {
 		}
 
 		fmt.Printf("Target: %v (%v)\n", ev.Description.TargetExists, ec.Description.TargetExists)
-		fmt.Printf("Target Direction: %v (vs %v)\n", ev.Description.TargetDirection, ec.Description.TargetDirection)
 		fmt.Printf("Target Degree: %v (vs %v)\n", ev.Description.TargetDegree, ec.Description.TargetDegree)
 		fmt.Printf("Distance: %v (vs %v)\n", ev.Description.DistanceInches, ec.Description.DistanceInches)
 		score := calculateScore(ec.Description, ev.Description)

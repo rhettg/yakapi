@@ -19,7 +19,6 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/rhettg/agent"
-	"github.com/rhettg/agent/agentset"
 	"github.com/rhettg/agent/provider/openaichat"
 	"github.com/rhettg/agent/tools"
 	"github.com/sashabaranov/go-openai"
@@ -68,17 +67,14 @@ func main() {
 		openaichat.WithMiddleware(openaichat.Logger(slog.Default())),
 	)
 
-	as := agentset.New()
-	as.Add("eyes", EyesAgentStartFunc(eyesP))
-
 	ts := tools.New()
-	ts.AddTools(as.Tools())
 	ts.Add(forwardCommand, forwardHelp, forwardSchema, forward)
 	ts.Add(backwardCommand, backwardHelp, backwardSchema, backward)
 	ts.Add(rightCommand, rightHelp, rightSchema, right)
 	ts.Add(leftCommand, leftHelp, leftSchema, left)
+	ts.Add(eyesCommand, eyesHelp, eyesSchema, askEyes(eyesP))
 
-	a := agent.New(p, tools.WithTools(ts), agentset.WithAgentSet(as))
+	a := agent.New(p, tools.WithTools(ts))
 	a.Add(agent.RoleSystem, systemMessage)
 
 	for {
@@ -117,7 +113,7 @@ func main() {
 
 			slog.Debug("step", "role", msg.Role, "function", msg.FunctionCallName, "content", response)
 
-			if msg.Role == agent.RoleAssistant && msg.FunctionCallName == "" && as.Idle() {
+			if msg.Role == agent.RoleAssistant && msg.FunctionCallName == "" {
 				fmt.Println(response)
 				break
 			}

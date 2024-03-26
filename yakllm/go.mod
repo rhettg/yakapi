@@ -4,9 +4,10 @@ go 1.21.6
 
 require (
 	github.com/charmbracelet/huh v0.2.3
-	github.com/rhettg/agent v0.1.0
+	github.com/rhettg/agent v0.1.1
 	github.com/sashabaranov/go-openai v1.18.3
 	gitlab.com/greyxor/slogor v1.2.2
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -42,7 +43,6 @@ require (
 	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/rhettg/agent => /Users/rhettg/Projects/agent
