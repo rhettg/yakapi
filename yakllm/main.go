@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -44,6 +45,31 @@ func main() {
 		Level:      slog.LevelDebug,
 		ShowSource: false,
 	})))
+
+	displaySnapshot := flag.Bool("snapshot", false, "display snapshot")
+	flag.Parse()
+
+	if *displaySnapshot {
+		imgData, err := grabImage(context.Background())
+		if err != nil {
+			errorf("failed to grab image: %v\n", err)
+		}
+
+		slog.Info("grabbed image", "size", len(imgData))
+
+		// Sometimes we get a bad image
+		if len(imgData) <= 4096 {
+			errorf("truncated image, try again")
+		}
+
+		overlayImgData, err := overlay(imgData)
+		if err != nil {
+			errorf("failed to overlay image: %v\n", err)
+		}
+
+		displayImage(overlayImgData)
+		return
+	}
 
 	slog.Info("booting up")
 
