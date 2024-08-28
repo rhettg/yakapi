@@ -1,8 +1,6 @@
-module github.com/rhettg/batteries/yakapi
+module github.com/rhettg/yakapi
 
-go 1.22.0
-
-toolchain go1.22.1
+go 1.18
 
 require (
 	github.com/prometheus/client_golang v1.15.1
