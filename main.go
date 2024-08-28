@@ -22,11 +22,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
-	"github.com/rhettg/batteries/yakapi/internal/ci"
-	"github.com/rhettg/batteries/yakapi/internal/gds"
-	"github.com/rhettg/batteries/yakapi/internal/mw"
-	"github.com/rhettg/batteries/yakapi/internal/stream"
-	"github.com/rhettg/batteries/yakapi/internal/telemetry"
+	"github.com/rhettg/yakapi/internal/ci"
+	"github.com/rhettg/yakapi/internal/gds"
+	"github.com/rhettg/yakapi/internal/mw"
+	"github.com/rhettg/yakapi/internal/stream"
+	"github.com/rhettg/yakapi/internal/telemetry"
 	"tailscale.com/client/tailscale"
 )
 
