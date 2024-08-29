@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 jobs:
   deployment:
-    needs: [build]
     runs-on: ubuntu-latest
     environment: yak-prime
     concurrency: yak-prime
