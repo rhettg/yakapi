@@ -62,7 +62,7 @@ def main():
             client.send("ci_result", {"error": str(e)})
             continue
 
-        print(f"sleeping")
+        print("sleeping")
         time.sleep(next_delay)
         motor_a(client, 0)
         motor_b(client, 0)
