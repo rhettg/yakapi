@@ -53,7 +53,11 @@ func eyes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, err = w.Write(content)
+	if err != nil {
+		slog.Error("error writing response", "error", err)
+		return
+	}
 }
 
 type resource struct {
@@ -124,12 +128,16 @@ func loadDotEnv() error {
 	return nil
 }
 
-func errorResponse(w http.ResponseWriter, respErr error, statusCode int) error {
+func errorResponse(w http.ResponseWriter, respErr error, statusCode int) {
 	resp := struct {
 		Error string `json:"error"`
 	}{Error: respErr.Error()}
 
-	return sendResponse(w, resp, statusCode)
+	err := sendResponse(w, resp, statusCode)
+	if err != nil {
+		slog.Error("error sending response", "error", err)
+		return
+	}
 }
 
 func sendResponse(w http.ResponseWriter, resp interface{}, statusCode int) error {
@@ -144,7 +152,8 @@ func sendResponse(w http.ResponseWriter, resp interface{}, statusCode int) error
 }
 
 func me(w http.ResponseWriter, r *http.Request) {
-	whois, err := tailscale.WhoIs(r.Context(), r.RemoteAddr)
+	lc := tailscale.LocalClient{}
+	whois, err := lc.WhoIs(r.Context(), r.RemoteAddr)
 	if err != nil {
 		errorResponse(w, errors.New("unknown"), http.StatusInternalServerError)
 		slog.Error("whois failure", "error", err)
@@ -297,7 +306,11 @@ func handleCamCapture(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, err = w.Write(content)
+	if err != nil {
+		slog.Error("error writing response", "error", err)
+		return
+	}
 }
 
 func homev1(w http.ResponseWriter, r *http.Request) {
@@ -339,26 +352,46 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func fetchTelemetryData(ctx context.Context, rdb *redis.Client) (map[string]interface{}, error) {
-	// Fetch the telemetry data from Redis
-	result, err := rdb.XRange(ctx, "yakapi:telemetry", "-", "+").Result()
-	if err != nil {
-		return nil, err
-	}
+func fetchTelemetryData(ctx context.Context, out chan telemetry.Data) error {
+	stream := streamManager.GetReader("telemetry")
+	defer streamManager.ReturnReader("telemetry", stream)
 
-	// Convert the result to a map[string]interface{}
-	telemetryData := make(map[string]interface{})
-	for _, message := range result {
-		for key, value := range message.Values {
-			telemetryData[key] = value
+	allTelemetryData := make(telemetry.Data)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case data, ok := <-stream:
+			if !ok {
+				return errors.New("stream closed")
+			}
+			// Load json telemetry from data
+			telemetryData := make(map[string]interface{})
+			err := json.Unmarshal([]byte(data), &telemetryData)
+			if err != nil {
+				slog.Warn("failed to unmarshal telemetry data", "error", err)
+				continue
+			}
+
+			for key, value := range telemetryData {
+				slog.Info("telemetry data", "key", key, "value", value)
+				allTelemetryData[key] = value
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case out <- allTelemetryData:
+			slog.Debug("telemetry collected")
+		default:
 		}
 	}
-
-	return telemetryData, nil
 }
 
 func parseStreamPath(path string) string {
-	remaining, found := strings.CutPrefix(path, "/stream/")
+	remaining, found := strings.CutPrefix(path, "/v1/stream/")
 	if found {
 		return remaining
 	}
@@ -368,13 +401,14 @@ func parseStreamPath(path string) string {
 func handleStream(w http.ResponseWriter, r *http.Request) {
 	streamName := parseStreamPath(r.URL.Path)
 	if streamName == "" {
+		slog.Warn("invalid stream path", "path", r.URL.Path)
 		http.Error(w, "Invalid stream path", http.StatusBadRequest)
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
-		slog.Info("stream out", "stream", streamName)
+		slog.Debug("stream out", "stream", streamName)
 		w.Header().Set("Transfer-Encoding", "chunked")
 		err := stream.StreamOut(r.Context(), w, streamName, streamManager)
 		if err != nil {
@@ -383,7 +417,7 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("stream out complete", "stream", streamName)
 	case http.MethodPost:
-		slog.Info("stream in", "stream", streamName)
+		slog.Debug("stream in", "stream", streamName)
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
@@ -425,9 +459,9 @@ func setupServer() *http.ServeMux {
 	mux.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
 	mux.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
 	mux.Handle("/v1/cam/capture", wrapper(http.HandlerFunc(handleCamCapture)))
+	mux.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
 	mux.Handle("/metrics", wrapper(promhttp.Handler()))
 	mux.Handle("/eyes", wrapper(http.HandlerFunc(eyes)))
-	mux.Handle("/stream/", wrapper(http.HandlerFunc(handleStream)))
 
 	return mux
 }
@@ -476,6 +510,14 @@ func runServer(cmd *cobra.Command, args []string) {
 			}
 		}()
 
+		source := make(chan telemetry.Data)
+		go func() {
+			err := fetchTelemetryData(context.Background(), source)
+			if err != nil {
+				slog.Error("error fetching telemetry data from Stream", "error", err)
+			}
+		}()
+
 		go func() {
 			c := gds.New(os.Getenv("YAKAPI_GDS_API_URL"))
 
@@ -484,12 +526,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			var lastSSB time.Time
 
 			for {
-				td, err := fetchTelemetryData(context.Background(), rdb)
-				if err != nil {
-					slog.Error("error fetching telemetry data from Redis", "error", err)
-					time.Sleep(10 * time.Second)
-					continue
-				}
+				td := <-source
 
 				for key, value := range td {
 					if cachedTd[key] != value {
@@ -505,7 +542,7 @@ func runServer(cmd *cobra.Command, args []string) {
 				}
 
 				if len(td) > 0 {
-					err = c.SendTelemetry(context.Background(), td)
+					err := c.SendTelemetry(context.Background(), td)
 					if err != nil {
 						slog.Error("error uploading telemetry to GDS", "error", err)
 					} else {
@@ -518,11 +555,16 @@ func runServer(cmd *cobra.Command, args []string) {
 		}()
 	}
 
+	telemetrySource := make(chan telemetry.Data)
 	go func() {
-		if rdb == nil {
-			return
+		err := fetchTelemetryData(context.Background(), telemetrySource)
+		if err != nil {
+			slog.Error("error fetching telemetry data from Stream", "error", err)
 		}
-		err := telemetry.Run(context.Background(), rdb, "yakapi:telemetry")
+	}()
+
+	go func() {
+		err := telemetry.Run(context.Background(), telemetrySource)
 		if err != nil {
 			slog.Error("error running telemetry", "error", err)
 		}
@@ -562,7 +604,11 @@ func main() {
 		return float64(time.Since(startTime).Seconds())
 	})
 
-	loadDotEnv()
+	err := loadDotEnv()
+	if err != nil {
+		slog.Error("error loading .env file", "error", err)
+		return
+	}
 
 	info, ok := debug.ReadBuildInfo()
 	if !ok {

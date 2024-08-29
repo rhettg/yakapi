@@ -2,6 +2,7 @@ package gds
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +19,7 @@ func TestGetNotes(t *testing.T) {
 			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := `{"commands.qo": [{"body": "hello there"}]}`
-			w.Write([]byte(resp))
+			_, _ = w.Write([]byte(resp))
 		}))
 
 		client := New(server.URL)
@@ -30,7 +31,10 @@ func TestGetNotes(t *testing.T) {
 		require.Equal(t, 1, len(notes))
 
 		n := notes[0]
-		require.Equal(t, "hello there", n.Body)
+		var bodyStr string
+		err = json.Unmarshal(n.Body, &bodyStr)
+		require.NoError(t, err)
+		require.Equal(t, "hello there", bodyStr)
 		require.Equal(t, "commands.qo", n.File)
 	})
 

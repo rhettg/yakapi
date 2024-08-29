@@ -1,28 +1,22 @@
-import os
-import sys
 import time
 
-import redis
+import yakapi
 
 
-def send_telemetry(rds, key, value):
+def send_telemetry(client, key, value):
     response = {key: str(value)}
 
-    rds.xadd("yakapi:telemetry", response, maxlen=1000)
+    client.send("telemetry", response)
     print(f"sent response: {response}")
 
 
 def main():
-    redis_url = os.environ.get("YAKAPI_REDIS_URL", "localhost:6379")
-    rds = redis.from_url(os.environ.get("REDIS_URL", f"redis://{redis_url}/0"))
-    if not rds.ping():
-        print("Redis is not available", file=sys.stderr)
-        sys.exit(1)
+    client = yakapi.Client("http://localhost:8080")
 
     startTime = time.time()
     while True:
         try:
-            send_telemetry(rds, "uptime", time.time() - startTime)
+            send_telemetry(client, "uptime", time.time() - startTime)
             time.sleep(1)
         except KeyboardInterrupt:
             print("Bye!")
