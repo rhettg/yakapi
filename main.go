@@ -52,7 +52,11 @@ func eyes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, err = w.Write(content)
+	if err != nil {
+		slog.Error("error writing response", "error", err)
+		return
+	}
 }
 
 type resource struct {
@@ -123,12 +127,16 @@ func loadDotEnv() error {
 	return nil
 }
 
-func errorResponse(w http.ResponseWriter, respErr error, statusCode int) error {
+func errorResponse(w http.ResponseWriter, respErr error, statusCode int) {
 	resp := struct {
 		Error string `json:"error"`
 	}{Error: respErr.Error()}
 
-	return sendResponse(w, resp, statusCode)
+	err := sendResponse(w, resp, statusCode)
+	if err != nil {
+		slog.Error("error sending response", "error", err)
+		return
+	}
 }
 
 func sendResponse(w http.ResponseWriter, resp interface{}, statusCode int) error {
@@ -143,7 +151,8 @@ func sendResponse(w http.ResponseWriter, resp interface{}, statusCode int) error
 }
 
 func me(w http.ResponseWriter, r *http.Request) {
-	whois, err := tailscale.WhoIs(r.Context(), r.RemoteAddr)
+	lc := tailscale.LocalClient{}
+	whois, err := lc.WhoIs(r.Context(), r.RemoteAddr)
 	if err != nil {
 		errorResponse(w, errors.New("unknown"), http.StatusInternalServerError)
 		slog.Error("whois failure", "error", err)
@@ -296,7 +305,11 @@ func handleCamCapture(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, err = w.Write(content)
+	if err != nil {
+		slog.Error("error writing response", "error", err)
+		return
+	}
 }
 
 func homev1(w http.ResponseWriter, r *http.Request) {
@@ -435,7 +448,11 @@ func main() {
 		return float64(time.Since(startTime).Seconds())
 	})
 
-	loadDotEnv()
+	err := loadDotEnv()
+	if err != nil {
+		slog.Error("error loading .env file", "error", err)
+		return
+	}
 
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -572,7 +589,7 @@ func main() {
 	}()
 
 	slog.Info("starting", "version", "1.0.0", "port", port, "build", revision)
-	err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%s", port), nil)
 	if err != nil {
 		slog.Error("error from ListenAndServer", "error", err)
 	}

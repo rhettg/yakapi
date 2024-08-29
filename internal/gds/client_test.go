@@ -19,7 +19,7 @@ func TestGetNotes(t *testing.T) {
 			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			resp := `{"commands.qo": [{"body": "hello there"}]}`
-			w.Write([]byte(resp))
+			_, _ = w.Write([]byte(resp))
 		}))
 
 		client := New(server.URL)
