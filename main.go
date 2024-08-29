@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"gitlab.com/greyxor/slogor"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -435,25 +436,7 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
-	slog.SetDefault(slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
-		Level:      slog.LevelInfo,
-		TimeFormat: time.Stamp,
-	})))
-
-	promauto.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "yakapi_uptime_seconds",
-		Help: "The uptime of the yakapi service",
-	}, func() float64 {
-		return float64(time.Since(startTime).Seconds())
-	})
-
-	err := loadDotEnv()
-	if err != nil {
-		slog.Error("error loading .env file", "error", err)
-		return
-	}
-
+func setupServer() *http.ServeMux {
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "yakapi_requests_total",
@@ -470,32 +453,20 @@ func main() {
 		return promhttp.InstrumentHandlerCounter(counter, logmw(next))
 	}
 
-	http.Handle("/", wrapper(http.HandlerFunc(home)))
-	http.Handle("/v1", wrapper(http.HandlerFunc(homev1)))
-	http.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
-	http.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
-	http.Handle("/v1/cam/capture", wrapper(http.HandlerFunc(handleCamCapture)))
-	http.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
-	http.Handle("/metrics", wrapper(promhttp.Handler()))
-	http.Handle("/eyes", wrapper(http.HandlerFunc(eyes)))
+	mux := http.NewServeMux()
+	mux.Handle("/", wrapper(http.HandlerFunc(home)))
+	mux.Handle("/v1", wrapper(http.HandlerFunc(homev1)))
+	mux.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
+	mux.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
+	mux.Handle("/v1/cam/capture", wrapper(http.HandlerFunc(handleCamCapture)))
+	mux.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
+	mux.Handle("/metrics", wrapper(promhttp.Handler()))
+	mux.Handle("/eyes", wrapper(http.HandlerFunc(eyes)))
 
-	port := os.Getenv("YAKAPI_PORT")
-	if port == "" {
-		port = "8080"
-	}
+	return mux
+}
 
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		slog.Error("failed loading build info")
-	}
-
-	for _, s := range info.Settings {
-		if s.Key == "vcs.revision" {
-			revision = s.Value
-			break
-		}
-	}
-
+func setupRedis() {
 	redis_url := "127.0.0.1:6379"
 	if os.Getenv("YAKAPI_REDIS_URL") != "" {
 		redis_url = os.Getenv("YAKAPI_REDIS_URL")
@@ -513,6 +484,17 @@ func main() {
 	} else {
 		slog.Info("redis connected")
 	}
+}
+
+func runServer(cmd *cobra.Command, args []string) {
+	port := os.Getenv("YAKAPI_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	mux := setupServer()
+
+	setupRedis()
 
 	streamManager = stream.NewManager()
 
@@ -589,8 +571,76 @@ func main() {
 	}()
 
 	slog.Info("starting", "version", "1.0.0", "port", port, "build", revision)
-	err = http.ListenAndServe(fmt.Sprintf(":%s", port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%s", port), mux)
 	if err != nil {
-		slog.Error("error from ListenAndServer", "error", err)
+		slog.Error("error from ListenAndServe", "error", err)
+	}
+}
+
+func main() {
+	var logLevel string
+
+	rootCmd := &cobra.Command{
+		Use:   "yakapi",
+		Short: "YakAPI - A versatile API server",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			level := slog.LevelInfo
+			if logLevel == "debug" {
+				level = slog.LevelDebug
+			}
+			slog.SetDefault(slog.New(slogor.NewHandler(os.Stderr, slogor.Options{
+				Level:      level,
+				TimeFormat: time.Stamp,
+			})))
+		},
+	}
+
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Set the logging level (info or debug)")
+
+	promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "yakapi_uptime_seconds",
+		Help: "The uptime of the yakapi service",
+	}, func() float64 {
+		return float64(time.Since(startTime).Seconds())
+	})
+
+	err := loadDotEnv()
+	if err != nil {
+		slog.Error("error loading .env file", "error", err)
+		return
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		slog.Error("failed loading build info")
+	}
+
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" {
+			revision = s.Value
+			break
+		}
+	}
+
+	serverCmd := &cobra.Command{
+		Use:   "server",
+		Short: "Start the YakAPI server",
+		Run:   runServer,
+	}
+
+	helloCmd := &cobra.Command{
+		Use:   "hello",
+		Short: "Print a greeting",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("hello world")
+		},
+	}
+
+	rootCmd.AddCommand(serverCmd)
+	rootCmd.AddCommand(helloCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		slog.Error("Error executing root command", "error", err)
+		os.Exit(1)
 	}
 }
