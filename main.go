@@ -357,7 +357,7 @@ func fetchTelemetryData(ctx context.Context, rdb *redis.Client) (map[string]inte
 }
 
 func parseStreamPath(path string) string {
-	remaining, found := strings.CutPrefix(path, "/stream/")
+	remaining, found := strings.CutPrefix(path, "/v1/stream/")
 	if found {
 		return remaining
 	}
@@ -367,6 +367,7 @@ func parseStreamPath(path string) string {
 func handleStream(w http.ResponseWriter, r *http.Request) {
 	streamName := parseStreamPath(r.URL.Path)
 	if streamName == "" {
+		slog.Warn("invalid stream path", "path", r.URL.Path)
 		http.Error(w, "Invalid stream path", http.StatusBadRequest)
 		return
 	}
@@ -437,9 +438,9 @@ func main() {
 	http.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
 	http.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
 	http.Handle("/v1/cam/capture", wrapper(http.HandlerFunc(handleCamCapture)))
+	http.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
 	http.Handle("/metrics", wrapper(promhttp.Handler()))
 	http.Handle("/eyes", wrapper(http.HandlerFunc(eyes)))
-	http.Handle("/stream/", wrapper(http.HandlerFunc(handleStream)))
 
 	port := os.Getenv("YAKAPI_PORT")
 	if port == "" {
