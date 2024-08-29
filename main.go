@@ -394,7 +394,7 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		slog.Info("stream out", "stream", streamName)
+		slog.Debug("stream out", "stream", streamName)
 		w.Header().Set("Transfer-Encoding", "chunked")
 		err := stream.StreamOut(r.Context(), w, streamName, streamManager)
 		if err != nil {
@@ -403,7 +403,7 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("stream out complete", "stream", streamName)
 	case http.MethodPost:
-		slog.Info("stream in", "stream", streamName)
+		slog.Debug("stream in", "stream", streamName)
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
