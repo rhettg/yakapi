@@ -31,7 +31,7 @@ $ curl -s http://localhost:8080/v1 | jq .
     },
     {
       "name": "project",
-      "ref": "https://GitHub.com/rhettg/yakapi"
+      "ref": "https://github.com/rhettg/yakapi"
     }
   ]
 }
