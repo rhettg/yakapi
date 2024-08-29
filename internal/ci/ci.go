@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"strings"
 	"time"
 
