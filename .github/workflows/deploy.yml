@@ -6,8 +6,9 @@ on:
     branches:
       - 'main'
   workflow_dispatch:
-jobs: 
+jobs:
   deployment:
+    needs: [build]
     runs-on: ubuntu-latest
     environment: yak-prime
     concurrency: yak-prime
