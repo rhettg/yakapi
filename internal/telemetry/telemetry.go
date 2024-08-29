@@ -5,10 +5,8 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -32,7 +30,7 @@ func setMetric(key, value string) {
 		slog.Info("establishing new telemetry metric", "name", key)
 		// Metric does not exist, create it
 		gauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: key,
+			Name: "telemetry_" + key,
 			Help: "",
 		})
 		prometheus.MustRegister(gauge)
@@ -45,36 +43,28 @@ func setMetric(key, value string) {
 	}
 }
 
-func Run(ctx context.Context, rdb *redis.Client, streamKey string) error {
-	cursor := "$"
+type Data map[string]interface{}
+
+func Run(ctx context.Context, source chan Data) error {
 	for {
-		slog.Debug("reading telemetry stream", "cursor", cursor, "stream", streamKey)
-		entries, err := rdb.XRead(ctx, &redis.XReadArgs{
-			Streams: []string{streamKey, cursor},
-			Count:   10,
-			Block:   10 * time.Second,
-		}).Result()
-
-		if err != nil && err != redis.Nil {
-			return err
-		}
-
-		for _, entry := range entries {
-			for _, message := range entry.Messages {
-				for key, value := range message.Values {
-					valueStr, ok := value.(string)
-					if ok {
-						setMetric(key, valueStr)
-					}
-				}
-				cursor = message.ID
-			}
-		}
-
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(100 * time.Millisecond):
+		case data, ok := <-source:
+			if !ok {
+				slog.Warn("telemetry stream closed")
+				return nil
+			}
+
+			slog.Debug("processing telemetry stream")
+			for key, value := range data {
+				valueStr, ok := value.(string)
+				if ok {
+					setMetric(key, valueStr)
+				} else {
+					slog.Warn("telemetry value is not a string", "key", key, "value", value)
+				}
+			}
 		}
 	}
 }

@@ -338,22 +338,42 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func fetchTelemetryData(ctx context.Context, rdb *redis.Client) (map[string]interface{}, error) {
-	// Fetch the telemetry data from Redis
-	result, err := rdb.XRange(ctx, "yakapi:telemetry", "-", "+").Result()
-	if err != nil {
-		return nil, err
-	}
+func fetchTelemetryData(ctx context.Context, out chan telemetry.Data) error {
+	stream := streamManager.GetReader("telemetry")
+	defer streamManager.ReturnReader("telemetry", stream)
 
-	// Convert the result to a map[string]interface{}
-	telemetryData := make(map[string]interface{})
-	for _, message := range result {
-		for key, value := range message.Values {
-			telemetryData[key] = value
+	allTelemetryData := make(telemetry.Data)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case data, ok := <-stream:
+			if !ok {
+				return errors.New("stream closed")
+			}
+			// Load json telemetry from data
+			telemetryData := make(map[string]interface{})
+			err := json.Unmarshal([]byte(data), &telemetryData)
+			if err != nil {
+				slog.Warn("failed to unmarshal telemetry data", "error", err)
+				continue
+			}
+
+			for key, value := range telemetryData {
+				slog.Info("telemetry data", "key", key, "value", value)
+				allTelemetryData[key] = value
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case out <- allTelemetryData:
+			slog.Debug("telemetry collected")
+		default:
 		}
 	}
-
-	return telemetryData, nil
 }
 
 func parseStreamPath(path string) string {
@@ -491,6 +511,14 @@ func main() {
 			}
 		}()
 
+		source := make(chan telemetry.Data)
+		go func() {
+			err := fetchTelemetryData(context.Background(), source)
+			if err != nil {
+				slog.Error("error fetching telemetry data from Stream", "error", err)
+			}
+		}()
+
 		go func() {
 			c := gds.New(os.Getenv("YAKAPI_GDS_API_URL"))
 
@@ -499,12 +527,7 @@ func main() {
 			var lastSSB time.Time
 
 			for {
-				td, err := fetchTelemetryData(context.Background(), rdb)
-				if err != nil {
-					slog.Error("error fetching telemetry data from Redis", "error", err)
-					time.Sleep(10 * time.Second)
-					continue
-				}
+				td := <-source
 
 				for key, value := range td {
 					if cachedTd[key] != value {
@@ -520,7 +543,7 @@ func main() {
 				}
 
 				if len(td) > 0 {
-					err = c.SendTelemetry(context.Background(), td)
+					err := c.SendTelemetry(context.Background(), td)
 					if err != nil {
 						slog.Error("error uploading telemetry to GDS", "error", err)
 					} else {
@@ -533,11 +556,16 @@ func main() {
 		}()
 	}
 
+	telemetrySource := make(chan telemetry.Data)
 	go func() {
-		if rdb == nil {
-			return
+		err := fetchTelemetryData(context.Background(), telemetrySource)
+		if err != nil {
+			slog.Error("error fetching telemetry data from Stream", "error", err)
 		}
-		err := telemetry.Run(context.Background(), rdb, "yakapi:telemetry")
+	}()
+
+	go func() {
+		err := telemetry.Run(context.Background(), telemetrySource)
 		if err != nil {
 			slog.Error("error running telemetry", "error", err)
 		}

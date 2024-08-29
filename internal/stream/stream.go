@@ -47,7 +47,7 @@ func (s *Stream) NewReader() streamChan {
 // requires the stream to be locked
 func (s *Stream) maybeClose() bool {
 	if s.writerCount == 0 && len(s.dataOut) == 0 {
-		slog.Info("closing stream", "stream", s.Name)
+		slog.Debug("closing stream", "stream", s.Name)
 		close(s.dataIn)
 		return true
 	}
@@ -64,7 +64,7 @@ func (s *Stream) CloseReader(ch streamChan) bool {
 		}
 	}
 	close(ch)
-	slog.Info("closed reader for stream", "stream", s.Name, "count", len(s.dataOut))
+	slog.Debug("closed reader for stream", "stream", s.Name, "count", len(s.dataOut))
 	return s.maybeClose()
 }
 
@@ -80,7 +80,7 @@ func (s *Stream) CloseWriter() bool {
 	defer s.mu.Unlock()
 
 	s.writerCount--
-	slog.Info("closed writer for stream", "stream", s.Name, "count", s.writerCount)
+	slog.Debug("closed writer for stream", "stream", s.Name, "count", s.writerCount)
 	return s.maybeClose()
 }
 
@@ -127,7 +127,7 @@ func (sm *Manager) ReturnWriter(name string) {
 	s := sm.streams[name]
 	if s.CloseWriter() {
 		delete(sm.streams, name)
-		slog.Info("stream closed", "stream", name)
+		slog.Debug("stream closed", "stream", name)
 		return
 	}
 }
@@ -144,7 +144,7 @@ func (sm *Manager) ReturnReader(name string, ch streamChan) {
 	s := sm.streams[name]
 	if s.CloseReader(ch) {
 		delete(sm.streams, name)
-		slog.Info("stream closed", "stream", name)
+		slog.Debug("stream closed", "stream", name)
 		return
 	}
 }
@@ -179,7 +179,7 @@ func StreamOut(ctx context.Context, w io.Writer, streamName string, sm *Manager)
 		select {
 		case data, ok := <-s:
 			if !ok {
-				slog.Info("stream closed", "stream", streamName)
+				slog.Debug("stream closed", "stream", streamName)
 				return nil
 			}
 			_, err := w.Write(data)
