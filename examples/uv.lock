@@ -116,6 +116,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "python-ulid" },
     { name = "requests" },
     { name = "urllib3" },
 ]
@@ -123,6 +124,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10.5" },
+    { name = "python-ulid", specifier = ">=2.7.0" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "urllib3", specifier = ">=2.2.2" },
 ]
@@ -182,6 +184,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/23/c1b7ae7a0b8a3e08225284ef3ecbcf014b292a3ee821bc4ed2185fd4ce7d/multidict-6.0.5-cp312-cp312-win32.whl", hash = "sha256:9fe7b0653ba3d9d65cbe7698cca585bf0f8c83dbbcc710db9c90f478e175f2d5", size = 25840 },
     { url = "https://files.pythonhosted.org/packages/4a/68/66fceb758ad7a88993940dbdf3ac59911ba9dc46d7798bf6c8652f89f853/multidict-6.0.5-cp312-cp312-win_amd64.whl", hash = "sha256:01265f5e40f5a17f8241d52656ed27192be03bfa8764d88e8220141d1e4b3556", size = 27905 },
     { url = "https://files.pythonhosted.org/packages/fa/a2/17e1e23c6be0a916219c5292f509360c345b5fa6beeb50d743203c27532c/multidict-6.0.5-py3-none-any.whl", hash = "sha256:0d63c74e3d7ab26de115c49bffc92cc77ed23395303d496eae515d4204a625e7", size = 9729 },
+]
+
+[[package]]
+name = "python-ulid"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/c5/03acac11f80d718da98201dadf6fdcf5aa4001e83bb61a65b6b91baa489c/python_ulid-2.7.0.tar.gz", hash = "sha256:18eb595885140851a490a95b0da4447911ff69fa9f434732067b97f6956f9fe9", size = 25010 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/48/90be1411fdbd38d291fa9e97621a60b5576d9122449bce4505ddfcfc9328/python_ulid-2.7.0-py3-none-any.whl", hash = "sha256:c81658e382f69bad8c6d365155c4ae21843ae4226b94f72c12d7adcbb545a251", size = 10788 },
 ]
 
 [[package]]

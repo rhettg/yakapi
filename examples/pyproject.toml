@@ -8,6 +8,7 @@ dependencies = [
     "requests>=2.32.3",
     "urllib3>=2.2.2",
     "aiohttp>=3.10.5",
+    "python-ulid>=2.7.0",
 ]
 
 line-length = 88

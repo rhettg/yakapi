@@ -4,6 +4,7 @@ import threading
 import queue
 import logging
 import json
+import ulid
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,9 @@ class Client:
                     buffer = b""
 
     def publish(self, stream_name, event):
+        if "id" not in event:
+            event = dict(event)
+            event["id"] = str(ulid.ULID())
         future = asyncio.run_coroutine_threadsafe(
             self._async_publish(stream_name, event), self.loop
         )
