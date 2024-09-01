@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/redis/go-redis/v9"
 	"github.com/rhettg/yakapi/internal/ci"
 	"github.com/rhettg/yakapi/internal/gds"
 	"github.com/rhettg/yakapi/internal/mw"
@@ -34,10 +33,10 @@ import (
 var (
 	//go:embed assets/*
 	assets        embed.FS
-	rdb           *redis.Client
 	startTime     time.Time
 	revision      = "unknown"
 	streamManager *stream.Manager
+	ciResults     ci.ResultCollector
 )
 
 func home(w http.ResponseWriter, r *http.Request) {
@@ -206,36 +205,35 @@ func handleCI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msgID, err := ci.Accept(r.Context(), rdb, req.Command)
+	msgID, err := ci.Accept(r.Context(), streamManager, req.Command)
 	if err != nil {
 		slog.Error("failed accepting ci command", "error", err)
 		errorResponse(w, err, http.StatusBadRequest)
 		return
 	}
 
-	var result, errorResult string
+	var result ci.Result
+	result.ID = msgID
+
 	if waitForResult {
 		waitCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		result, err = ci.FetchResult(waitCtx, rdb, msgID)
-		cancel()
-
-		if err != nil {
-			slog.Error("failed fetching ci command result", "error", err)
-			errorResult = err.Error()
+		for {
+			result = ciResults.FetchResult(msgID)
+			if result.ID != "" {
+				break
+			}
+			select {
+			case <-waitCtx.Done():
+				slog.Error("failed fetching ci command result", "error", err)
+				errorResponse(w, err, http.StatusServiceUnavailable)
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
 		}
+		cancel()
 	}
 
-	resp := struct {
-		ID     string `json:"id"`
-		Result string `json:"result,omitempty"`
-		Error  string `json:"error,omitempty"`
-	}{
-		ID:     string(msgID),
-		Result: result,
-		Error:  errorResult,
-	}
-
-	err = sendResponse(w, resp, http.StatusAccepted)
+	err = sendResponse(w, result, http.StatusAccepted)
 	if err != nil {
 		slog.Error("error sending response", "error", err)
 		return
@@ -277,7 +275,7 @@ func doGDSCI(ctx context.Context, c *gds.Client) error {
 		}
 
 		slog.Info("accepting command", "command", req.Command, "note", n.Note)
-		msgID, err := ci.Accept(ctx, rdb, req.Command)
+		msgID, err := ci.Accept(ctx, streamManager, req.Command)
 		if err != nil {
 			slog.Error("failed accepting ci command", "error", err)
 			continue
@@ -466,26 +464,6 @@ func setupServer() *http.ServeMux {
 	return mux
 }
 
-func setupRedis() {
-	redis_url := "127.0.0.1:6379"
-	if os.Getenv("YAKAPI_REDIS_URL") != "" {
-		redis_url = os.Getenv("YAKAPI_REDIS_URL")
-	}
-
-	slog.Info("configuring redis", "url", redis_url)
-	rdb = redis.NewClient(&redis.Options{
-		Addr: redis_url,
-	})
-
-	ping := rdb.Ping(context.Background())
-	if err := ping.Err(); err != nil {
-		slog.Error("failed connecting to redis", "error", err)
-		rdb = nil
-	} else {
-		slog.Info("redis connected")
-	}
-}
-
 func runServer(cmd *cobra.Command, args []string) {
 	port := os.Getenv("YAKAPI_PORT")
 	if port == "" {
@@ -493,8 +471,6 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 
 	mux := setupServer()
-
-	setupRedis()
 
 	streamManager = stream.NewManager()
 
@@ -567,6 +543,13 @@ func runServer(cmd *cobra.Command, args []string) {
 		err := telemetry.Run(context.Background(), telemetrySource)
 		if err != nil {
 			slog.Error("error running telemetry", "error", err)
+		}
+	}()
+
+	go func() {
+		err := ciResults.Collect(context.Background(), streamManager)
+		if err != nil {
+			slog.Error("error running ci results collector", "error", err)
 		}
 	}()
 

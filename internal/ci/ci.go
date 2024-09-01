@@ -2,79 +2,127 @@ package ci
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
+	"sync"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/google/uuid"
+	"github.com/rhettg/yakapi/internal/stream"
 )
 
 type CommandID string
 
-func Accept(ctx context.Context, rdb *redis.Client, cmd string) (CommandID, error) {
-	if cmd == "" {
+type Result struct {
+	ID     CommandID
+	Result string `json:"result,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+type Command struct {
+	ID   CommandID `json:"id"`
+	Cmd  string    `json:"cmd"`
+	Args string    `json:"args,omitempty"`
+}
+
+func Accept(ctx context.Context, sm *stream.Manager, cmdStr string) (CommandID, error) {
+	if cmdStr == "" {
 		return "", errors.New("empty command")
 	}
 
-	var err error
+	cmdID := CommandID(uuid.New().String())
 
-	id, err := stream(ctx, rdb, cmd)
+	f := strings.Fields(cmdStr)
+
+	cmd := Command{
+		ID:   cmdID,
+		Cmd:  f[0],
+		Args: strings.Join(f[1:], " "),
+	}
+
+	err := streamCommand(ctx, sm, cmd)
 	if err != nil {
 		return "", err
 	}
 
-	return id, nil
+	return cmdID, nil
 }
 
-func stream(ctx context.Context, rdb *redis.Client, cmd string) (CommandID, error) {
-	if cmd == "" {
-		return "", errors.New("empty command")
-	}
+type ResultCollector struct {
+	results [256]Result
+	ndx     int
 
-	if rdb == nil {
-		return "", nil
-	}
-
-	f := strings.Fields(cmd)
-	result, err := rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: "yakapi:ci",
-		Values: map[string]interface{}{
-			"cmd":  f[0],
-			"args": strings.Join(f[1:], " "),
-		},
-	}).Result()
-
-	if err != nil {
-		return "", fmt.Errorf("failed to stream command: %w", err)
-	}
-
-	slog.Info("streamed command", "stream", "yakapi:ci", "id", result)
-
-	return CommandID(result), nil
+	mu sync.RWMutex
 }
 
-func FetchResult(ctx context.Context, rdb *redis.Client, id CommandID) (string, error) {
-	if rdb == nil {
-		return "", nil
+func (rc *ResultCollector) FetchResult(id CommandID) Result {
+	if id == "" {
+		return Result{}
 	}
 
-	var messages []redis.XMessage
-	var err error
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
 
-	for len(messages) == 0 {
-		time.Sleep(100 * time.Millisecond)
-		messages, err = rdb.XRange(ctx, "yakapi:ci:result", string(id), string(id)).Result()
-		if err != nil {
-			fmt.Println("Error reading specific ID from stream:", err)
-			return "", err
+	for i := 0; i < len(rc.results); i++ {
+		if rc.results[i].ID == id {
+			return rc.results[i]
 		}
 	}
 
-	if errStr, ok := messages[0].Values["error"]; ok {
-		return "", errors.New(errStr.(string))
+	return Result{}
+}
+
+func (rc *ResultCollector) Collect(ctx context.Context, sm *stream.Manager) error {
+	s := sm.GetReader("ci:result")
+	defer sm.ReturnReader("ci:result", s)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case data, ok := <-s:
+			if !ok {
+				return errors.New("stream closed")
+			}
+			var result Result
+			err := json.Unmarshal([]byte(data), &result)
+			if err != nil {
+				slog.Warn("failed to unmarshal ci result", "error", err)
+				continue
+			}
+
+			if result.ID == "" {
+				slog.Warn("ci result missing id")
+				continue
+			}
+			slog.Debug("collected ci result", "id", result.ID)
+
+			rc.mu.Lock()
+			rc.results[rc.ndx] = result
+			rc.ndx = (rc.ndx + 1) % len(rc.results)
+			rc.mu.Unlock()
+		}
+	}
+}
+
+func streamCommand(ctx context.Context, sm *stream.Manager, cmd Command) error {
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to serialize command: %w", err)
 	}
 
-	return messages[0].Values["result"].(string), nil
+	s := sm.GetWriter("ci")
+	defer sm.ReturnWriter("ci")
+
+	select {
+	case s <- data:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	slog.Info("streamed command", "stream", "yakapi:ci", "id", cmd.ID)
+
+	return nil
 }

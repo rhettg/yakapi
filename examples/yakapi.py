@@ -39,22 +39,23 @@ class Client:
 
     def read_stream(self, stream_name):
         logger.debug(f"Reading from {stream_name}")
-        try:
+        while True:
             with self.session.get(
-                self._stream_url(stream_name), stream=True, timeout=30
+                self._stream_url(stream_name), stream=True
             ) as response:
                 response.raise_for_status()
-                for chunk in response.iter_content(
-                    chunk_size=1024, decode_unicode=True
-                ):
-                    if chunk:
-                        try:
-                            yield json.loads(chunk.strip())
-                        except json.JSONDecodeError:
-                            logger.error(f"Failed to parse JSON: {chunk}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error reading from stream {stream_name}: {e}")
-            raise
+                try:
+                    for chunk in response.iter_content(
+                        chunk_size=1024, decode_unicode=True
+                    ):
+                        if chunk:
+                            try:
+                                yield json.loads(chunk.strip())
+                            except json.JSONDecodeError:
+                                logger.error(f"Failed to parse JSON: {chunk}")
+                except requests.exceptions.ChunkedEncodingError:
+                    logger.warning("stream closed prematurely")
+                    continue
 
     def close(self):
         self.session.close()

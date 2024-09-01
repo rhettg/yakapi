@@ -2,7 +2,7 @@
 
 The YakAPI Server is meant to run on Rovers to provide an API for it. It is
 extensible by allowing implementation specific software to participate in a
-Rover software ecosystem using Redis as middleware.
+Rover software ecosystem.
 
 ## Usage
 
@@ -36,12 +36,6 @@ $ curl -s http://localhost:8080/v1 | jq .
   ]
 }
 ```
-
-### Services
-
-YakAPI requires additional services to provide actual functionality. It
-communicates with these services via Redis Streams. An example implementation is
-provided in [`examples/ci.py`](examples/ci.py).
 
 ### Development
 
@@ -78,7 +72,6 @@ Configuration is primarily through environment variables
 
 * `YAKAPI_PORT` [default `8080`] port for api server to listen on
 * `YAKAPI_NAME` [default `YakBot`] name for rover 
-* `YAKAPI_REDIS_URL` [default `redis://localhost:6379`] URL for redis server
 * `YAKAPI_PROJECT_URL` [default `https://github.com/The-Yak-Collective/yakrover`] URL for more information
 * `YAKAPI_CAM_CAPTURE_PATH` path to image for camera.
 
@@ -99,13 +92,11 @@ yakapi_processed_ops_total 0
 
 ### ci (command injection)
 
-This service translates commands into motor settings. There are two redis streams that a implementation must interact with:
+This service translates commands into motor settings. There are two streams that a implementation must interact with:
 
-* `yakapi:ci` stream of accepted commands
-* `yakapi:ci:result` results of executing commands (XADD with the same id as the command)
+* `ci` stream of accepted commands
+* `ci:result` results of executing commands
 
 ### cam
 
 The camera component can current serve an image if placed in a configured path.
-
-**TODO**: Redis-ify

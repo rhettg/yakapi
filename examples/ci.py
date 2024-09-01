@@ -4,11 +4,11 @@ import yakapi
 
 
 def motor_a(client, power):
-    client.send_command("motor_a", {"power": power})
+    client.send("motor_a", {"power": power})
 
 
 def motor_b(client, power):
-    client.send_command("motor_b", {"power": power})
+    client.send("motor_b", {"power": power})
 
 
 def apply_command(client, cmd, args):
@@ -17,8 +17,10 @@ def apply_command(client, cmd, args):
 
     if cmd == "quit":
         return None
-    elif cmd == "noop":
+    elif cmd in ("noop", "ping"):
         return 0.0
+    elif cmd == "boom":
+        raise Exception("boom")
     elif cmd == "lt":
         angle = args[0]
         motor_a(client, -0.8)
@@ -54,22 +56,34 @@ def main():
     for event in client.read_stream("ci"):
         command = event.get("cmd")
         args = event.get("args", "")
+        result = {"id": event["id"]}
 
         print(f"Processing {command} {args}... ", end="", flush=True)
         try:
             next_delay = apply_command(client, command, args)
         except Exception as e:
-            client.send("ci_result", {"error": str(e)})
+            print(f"error: {e}")
+            result["error"] = str(e)
+            client.send("ci:result", result)
             continue
+
+        if next_delay is None:
+            print("quitting")
+            break
 
         print("sleeping")
         time.sleep(next_delay)
         motor_a(client, 0)
         motor_b(client, 0)
-        print("done")
+        print("ok")
 
-        client.send("ci_result", {"result": "ok"})
+        result["result"] = "ok"
+        client.send("ci:result", result)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    print("Bye!")
