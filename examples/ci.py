@@ -1,14 +1,15 @@
 import time
+import logging
 
 import yakapi
 
 
 def motor_a(client, power):
-    client.send("motor_a", {"power": power})
+    client.publish("motor_a", {"power": power})
 
 
 def motor_b(client, power):
-    client.send("motor_b", {"power": power})
+    client.publish("motor_b", {"power": power})
 
 
 def apply_command(client, cmd, args):
@@ -53,7 +54,7 @@ def apply_command(client, cmd, args):
 def main():
     client = yakapi.Client("http://localhost:8080")
 
-    for event in client.read_stream("ci"):
+    for _, event in client.subscribe(["ci"]):
         command = event.get("cmd")
         args = event.get("args", "")
         result = {"id": event["id"]}
@@ -64,7 +65,7 @@ def main():
         except Exception as e:
             print(f"error: {e}")
             result["error"] = str(e)
-            client.send("ci:result", result)
+            client.publish("ci:result", result)
             continue
 
         if next_delay is None:
@@ -78,10 +79,12 @@ def main():
         print("ok")
 
         result["result"] = "ok"
-        client.send("ci:result", result)
+        client.publish("ci:result", result)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    logging.debug("Starting")
     try:
         main()
     except KeyboardInterrupt:

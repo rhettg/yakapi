@@ -6,7 +6,7 @@ import yakapi
 def send_telemetry(client, key, value):
     response = {key: str(value)}
 
-    client.send("telemetry", response)
+    client.publish("telemetry", response)
     print(f"sent response: {response}")
 
 

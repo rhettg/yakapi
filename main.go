@@ -224,6 +224,7 @@ func handleCI(w http.ResponseWriter, r *http.Request) {
 			}
 			select {
 			case <-waitCtx.Done():
+				err = waitCtx.Err()
 				slog.Error("failed fetching ci command result", "error", err)
 				errorResponse(w, err, http.StatusServiceUnavailable)
 				return
