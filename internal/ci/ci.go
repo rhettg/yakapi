@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"github.com/rhettg/yakapi/internal/stream"
 )
 
@@ -32,7 +32,7 @@ func Accept(ctx context.Context, sm *stream.Manager, cmdStr string) (CommandID, 
 		return "", errors.New("empty command")
 	}
 
-	cmdID := CommandID(uuid.New().String())
+	cmdID := CommandID(ulid.Make().String())
 
 	f := strings.Fields(cmdStr)
 
