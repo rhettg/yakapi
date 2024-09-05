@@ -25,6 +25,7 @@ import (
 	"github.com/rhettg/yakapi/internal/ci"
 	"github.com/rhettg/yakapi/internal/gds"
 	"github.com/rhettg/yakapi/internal/mw"
+	"github.com/rhettg/yakapi/internal/sfc"
 	"github.com/rhettg/yakapi/internal/stream"
 	"github.com/rhettg/yakapi/internal/telemetry"
 	"tailscale.com/client/tailscale"
@@ -466,6 +467,58 @@ func setupServer() *http.ServeMux {
 	return mux
 }
 
+type sfcValue struct {
+	Value interface{} `json:"value"`
+}
+
+func sfcControlValues(ctx context.Context, cv chan sfc.ControlValue) error {
+	for {
+		select {
+		case cv, ok := <-cv:
+			if !ok {
+				return nil
+			}
+
+			slog.Debug("sfc control value", "region", cv.Region, "value", cv.Value)
+			streamName := fmt.Sprintf("sfc-control:%s", cv.Region)
+			s := streamManager.GetWriter(streamName)
+			value, err := json.Marshal(sfcValue{Value: cv.Value})
+			if err != nil {
+				slog.Error("error marshaling sfc control value", "error", err)
+				continue
+			}
+			s <- value
+			streamManager.ReturnWriter(streamName)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func setupSFCserver() *http.ServeMux {
+	mux := http.NewServeMux()
+
+	/*
+		var wrapper func(http.Handler) http.Handler
+		logmw := mw.NewLoggerMiddleware(slog.Default())
+		wrapper = func(next http.Handler) http.Handler {
+			return logmw(next)
+		}
+	*/
+
+	cv := make(chan sfc.ControlValue)
+	go sfcControlValues(context.Background(), cv)
+
+	handleWebSocket := func(w http.ResponseWriter, r *http.Request) {
+		sfc.HandleWebSocket(cv, w, r)
+	}
+
+	mux.Handle("/", http.HandlerFunc(handleWebSocket))
+	mux.Handle("/mjpg", http.HandlerFunc(sfc.HandleVideo))
+
+	return mux
+}
+
 func runServer(cmd *cobra.Command, args []string) {
 	port := os.Getenv("YAKAPI_PORT")
 	if port == "" {
@@ -552,6 +605,16 @@ func runServer(cmd *cobra.Command, args []string) {
 		err := ciResults.Collect(context.Background(), streamManager)
 		if err != nil {
 			slog.Error("error running ci results collector", "error", err)
+		}
+	}()
+
+	go func() {
+		port := 8765
+		sfcMux := setupSFCserver()
+		slog.Info("starting sfc", "version", "1.0.0", "port", port, "build", revision)
+		err := http.ListenAndServe(fmt.Sprintf(":%d", port), sfcMux)
+		if err != nil {
+			slog.Error("error from sfc ListenAndServe", "error", err)
 		}
 	}()
 
