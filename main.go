@@ -13,7 +13,9 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -471,7 +473,7 @@ type sfcValue struct {
 	Value interface{} `json:"value"`
 }
 
-func sfcControlValues(ctx context.Context, cv chan sfc.ControlValue) error {
+func sfcWriteControlValues(ctx context.Context, cv chan sfc.ControlValue) error {
 	for {
 		select {
 		case cv, ok := <-cv:
@@ -495,6 +497,43 @@ func sfcControlValues(ctx context.Context, cv chan sfc.ControlValue) error {
 	}
 }
 
+func sfcReadControlValues(ctx context.Context, cv chan sfc.ControlValue) error {
+	var wg sync.WaitGroup
+
+	for _, r := range sfc.AllRegions {
+		wg.Add(1)
+		go func(region sfc.Region) {
+			defer wg.Done()
+			ch := streamManager.GetReader(fmt.Sprintf("sfc-control-set:%s", region))
+			defer streamManager.ReturnReader(fmt.Sprintf("sfc-control-set:%s", region), ch)
+
+			for {
+				select {
+				case data, ok := <-ch:
+					if !ok {
+						slog.Warn("Channel closed", "region", region)
+						return
+					}
+					slog.Debug("Received control value", "region", region, "data", string(data))
+					fv, err := strconv.ParseFloat(string(data), 64)
+					if err != nil {
+						slog.Debug("not a float")
+						cv <- sfc.ControlValue{Region: region, Value: data}
+						continue
+					}
+
+					cv <- sfc.ControlValue{Region: region, Value: fv}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(r)
+	}
+
+	wg.Wait()
+	return ctx.Err()
+}
+
 func setupSFCserver() *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -506,11 +545,14 @@ func setupSFCserver() *http.ServeMux {
 		}
 	*/
 
-	cv := make(chan sfc.ControlValue)
-	go sfcControlValues(context.Background(), cv)
+	cvIn := make(chan sfc.ControlValue)
+	go sfcReadControlValues(context.Background(), cvIn)
+
+	cvOut := make(chan sfc.ControlValue)
+	go sfcWriteControlValues(context.Background(), cvOut)
 
 	handleWebSocket := func(w http.ResponseWriter, r *http.Request) {
-		sfc.HandleWebSocket(cv, w, r)
+		sfc.HandleWebSocket(cvIn, cvOut, w, r)
 	}
 
 	mux.Handle("/", http.HandlerFunc(handleWebSocket))

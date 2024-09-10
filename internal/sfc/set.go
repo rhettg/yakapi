@@ -5,37 +5,6 @@ import (
 	"fmt"
 )
 
-type Region string
-
-const (
-	RegionA Region = "A"
-	RegionB Region = "B"
-	RegionC Region = "C"
-	RegionD Region = "D"
-	RegionE Region = "E"
-	RegionF Region = "F"
-	RegionG Region = "G"
-	RegionH Region = "H"
-	RegionI Region = "I"
-	RegionJ Region = "J"
-	RegionK Region = "K"
-	RegionL Region = "L"
-	RegionM Region = "M"
-	RegionN Region = "N"
-	RegionO Region = "O"
-	RegionP Region = "P"
-	RegionQ Region = "Q"
-	RegionR Region = "R"
-	RegionS Region = "S"
-	RegionT Region = "T"
-	RegionU Region = "U"
-	RegionV Region = "V"
-	RegionW Region = "W"
-	RegionX Region = "X"
-	RegionY Region = "Y"
-	RegionZ Region = "Z"
-)
-
 type RegionMap map[Region]interface{}
 
 func NewRegionMap() RegionMap {

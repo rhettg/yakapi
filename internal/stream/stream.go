@@ -9,12 +9,12 @@ import (
 	"sync"
 )
 
-type streamChan chan []byte
+type StreamChan chan []byte
 
 type Stream struct {
 	Name        string
-	dataIn      streamChan
-	dataOut     []streamChan
+	dataIn      StreamChan
+	dataOut     []StreamChan
 	writerCount int
 
 	mu sync.RWMutex
@@ -34,11 +34,11 @@ func (s *Stream) stream() {
 	}
 }
 
-func (s *Stream) NewReader() streamChan {
+func (s *Stream) NewReader() StreamChan {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	ch := make(streamChan, 8)
+	ch := make(StreamChan, 8)
 	s.dataOut = append(s.dataOut, ch)
 	return ch
 }
@@ -54,7 +54,7 @@ func (s *Stream) maybeClose() bool {
 	return false
 }
 
-func (s *Stream) CloseReader(ch streamChan) bool {
+func (s *Stream) CloseReader(ch StreamChan) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, out := range s.dataOut {
@@ -68,7 +68,7 @@ func (s *Stream) CloseReader(ch streamChan) bool {
 	return s.maybeClose()
 }
 
-func (s *Stream) Writer() streamChan {
+func (s *Stream) Writer() StreamChan {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writerCount++
@@ -87,8 +87,8 @@ func (s *Stream) CloseWriter() bool {
 func New(name string) *Stream {
 	s := Stream{
 		Name:        name,
-		dataIn:      make(streamChan),
-		dataOut:     make([]streamChan, 0),
+		dataIn:      make(StreamChan),
+		dataOut:     make([]StreamChan, 0),
 		writerCount: 0,
 	}
 
@@ -102,7 +102,7 @@ type Manager struct {
 	mu      sync.RWMutex
 }
 
-func (sm *Manager) GetWriter(name string) streamChan {
+func (sm *Manager) GetWriter(name string) StreamChan {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -132,7 +132,7 @@ func (sm *Manager) ReturnWriter(name string) {
 	}
 }
 
-func (sm *Manager) ReturnReader(name string, ch streamChan) {
+func (sm *Manager) ReturnReader(name string, ch StreamChan) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -149,7 +149,7 @@ func (sm *Manager) ReturnReader(name string, ch streamChan) {
 	}
 }
 
-func (sm *Manager) GetReader(name string) streamChan {
+func (sm *Manager) GetReader(name string) StreamChan {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

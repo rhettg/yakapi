@@ -11,6 +11,41 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Region string
+
+const (
+	RegionA Region = "A"
+	RegionB Region = "B"
+	RegionC Region = "C"
+	RegionD Region = "D"
+	RegionE Region = "E"
+	RegionF Region = "F"
+	RegionG Region = "G"
+	RegionH Region = "H"
+	RegionI Region = "I"
+	RegionJ Region = "J"
+	RegionK Region = "K"
+	RegionL Region = "L"
+	RegionM Region = "M"
+	RegionN Region = "N"
+	RegionO Region = "O"
+	RegionP Region = "P"
+	RegionQ Region = "Q"
+	RegionR Region = "R"
+	RegionS Region = "S"
+	RegionT Region = "T"
+	RegionU Region = "U"
+	RegionV Region = "V"
+	RegionW Region = "W"
+	RegionX Region = "X"
+	RegionY Region = "Y"
+	RegionZ Region = "Z"
+)
+
+var AllRegions = []Region{
+	RegionA, RegionB, RegionC, RegionD, RegionE, RegionF, RegionG, RegionH, RegionI, RegionJ, RegionK, RegionL, RegionM, RegionN, RegionO, RegionP, RegionQ, RegionR, RegionS, RegionT, RegionU, RegionV, RegionW, RegionX, RegionY, RegionZ,
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -54,11 +89,11 @@ type wsMessage struct {
 }
 
 type ControlValue struct {
-	Region string
+	Region Region
 	Value  interface{}
 }
 
-func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Request) {
+func HandleWebSocket(cvcIn chan ControlValue, cvcOut chan ControlValue, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("Failed to upgrade connection:", "err", err)
@@ -82,7 +117,6 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 	}
 
 	rm := RegionMap{}
-	rm.SetFloat(RegionA, 50.0)
 
 	inMsgs := make(chan wsMessage)
 
@@ -140,8 +174,21 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 					}
 
 					slog.Debug("Control Value", "region", k, "value", v)
-					cvc <- ControlValue{Region: k, Value: v}
+					cvcOut <- ControlValue{Region: Region(k), Value: v}
 				}
+			}
+
+			lastPong = time.Now()
+		case cvc := <-cvcIn:
+			switch v := cvc.Value.(type) {
+			case float64:
+				rm.SetFloat(cvc.Region, v)
+			case int:
+				rm.SetFloat(cvc.Region, float64(v))
+			case string:
+				rm.SetString(cvc.Region, v)
+			default:
+				slog.Warn("Unknown type for control value:", "type", fmt.Sprintf("%T", v))
 			}
 
 			rmd, err := rm.ToJSON()
@@ -151,7 +198,6 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 			}
 			slog.Info("sending set value", "region_map", rmd)
 			outMsgs <- wsMessage{Message: []byte(rmd)}
-			lastPong = time.Now()
 		case <-time.After(20 * time.Millisecond):
 			if time.Since(lastPong) > 200*time.Millisecond {
 				lastPong = time.Now()
