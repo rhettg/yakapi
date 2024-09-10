@@ -1,49 +1,68 @@
 package sfc
 
-import "strings"
-
-type Region uint8
-
-const (
-	RegionA Region = 0
-	RegionB Region = 1
-	RegionC Region = 2
-	RegionD Region = 3
-	RegionE Region = 4
-	RegionF Region = 5
-	RegionG Region = 6
-	RegionH Region = 7
-	RegionI Region = 8
-	RegionJ Region = 9
-	RegionK Region = 10
-	RegionL Region = 11
-	RegionM Region = 12
-	RegionN Region = 13
-	RegionO Region = 14
-	RegionP Region = 15
-	RegionQ Region = 16
-	RegionR Region = 17
-	RegionS Region = 18
-	RegionT Region = 19
-	RegionU Region = 20
-	RegionV Region = 21
-	RegionW Region = 22
-	RegionX Region = 23
-	RegionY Region = 24
-	RegionZ Region = 25
+import (
+	"encoding/json"
+	"fmt"
 )
 
-type SemicolonSeparatedString string
+type Region string
 
-func (s *SemicolonSeparatedString) SetStrOf(region Region, value string) {
-	str := string(*s)
-	parts := strings.Split(str, ";")
+const (
+	RegionA Region = "A"
+	RegionB Region = "B"
+	RegionC Region = "C"
+	RegionD Region = "D"
+	RegionE Region = "E"
+	RegionF Region = "F"
+	RegionG Region = "G"
+	RegionH Region = "H"
+	RegionI Region = "I"
+	RegionJ Region = "J"
+	RegionK Region = "K"
+	RegionL Region = "L"
+	RegionM Region = "M"
+	RegionN Region = "N"
+	RegionO Region = "O"
+	RegionP Region = "P"
+	RegionQ Region = "Q"
+	RegionR Region = "R"
+	RegionS Region = "S"
+	RegionT Region = "T"
+	RegionU Region = "U"
+	RegionV Region = "V"
+	RegionW Region = "W"
+	RegionX Region = "X"
+	RegionY Region = "Y"
+	RegionZ Region = "Z"
+)
 
-	if int(region) < len(parts) {
-		parts[region] = value
-	} else if int(region) == len(parts) {
-		parts = append(parts, value)
+type RegionMap map[Region]interface{}
+
+func NewRegionMap() RegionMap {
+	return make(RegionMap)
+}
+
+func (rm RegionMap) SetFloat(region Region, value float64) {
+	rm[region] = value
+}
+
+func (rm RegionMap) SetString(region Region, value string) {
+	rm[region] = value
+}
+
+func (rm RegionMap) Get(region Region) (interface{}, bool) {
+	value, ok := rm[region]
+	return value, ok
+}
+
+func (rm RegionMap) ToJSON() (string, error) {
+	jsonData, err := json.Marshal(rm)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling RegionMap to JSON: %w", err)
 	}
+	return string(jsonData), nil
+}
 
-	*s = SemicolonSeparatedString(strings.Join(parts, ";"))
+func (rm RegionMap) FromJSON(jsonStr string) error {
+	return json.Unmarshal([]byte(jsonStr), &rm)
 }

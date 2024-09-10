@@ -81,8 +81,8 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	setStr := SemicolonSeparatedString(";;;;;;;;;;;;;;;;;;;;;;;;;")
-	setStr.SetStrOf(RegionB, "50.0")
+	rm := RegionMap{}
+	rm.SetFloat(RegionA, 50.0)
 
 	inMsgs := make(chan wsMessage)
 
@@ -111,7 +111,7 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 				return
 			case msg := <-outMsgs:
 				// TODO: switch on msg.Type
-				if err := conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%s", msg.Message))); err != nil {
+				if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Message)); err != nil {
 					slog.Error("Failed to send message:", "err", err)
 					return
 				}
@@ -143,9 +143,14 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 					cvc <- ControlValue{Region: k, Value: v}
 				}
 			}
-			jStr := "{\"A\": 50.0}"
-			slog.Info("sending setStr", "setStr", jStr)
-			outMsgs <- wsMessage{Message: []byte(jStr)}
+
+			rmd, err := rm.ToJSON()
+			if err != nil {
+				slog.Error("Error marshaling JSON:", "err", err)
+				continue
+			}
+			slog.Info("sending set value", "region_map", rmd)
+			outMsgs <- wsMessage{Message: []byte(rmd)}
 			lastPong = time.Now()
 		case <-time.After(20 * time.Millisecond):
 			if time.Since(lastPong) > 200*time.Millisecond {
@@ -165,8 +170,5 @@ func HandleWebSocket(cvc chan ControlValue, w http.ResponseWriter, r *http.Reque
 
 func HandleVideo(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("Serving video")
-	select {
-	case <-r.Context().Done():
-		return
-	}
+	<-r.Context().Done()
 }
