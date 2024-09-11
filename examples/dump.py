@@ -1,8 +1,8 @@
-import yakapi
+from yakapi import Client
 
 
 def main():
-    client = yakapi.Client("http://localhost:8080")
+    client = Client("http://localhost:8080")
 
     for stream, event in client.subscribe(
         ["ci", "ci:result", "motor_a", "motor_b", "telemetry"]

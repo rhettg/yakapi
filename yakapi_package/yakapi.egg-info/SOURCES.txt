@@ -1,0 +1,7 @@
+README.md
+setup.py
+yakapi.egg-info/PKG-INFO
+yakapi.egg-info/SOURCES.txt
+yakapi.egg-info/dependency_links.txt
+yakapi.egg-info/requires.txt
+yakapi.egg-info/top_level.txt
