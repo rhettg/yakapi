@@ -3,10 +3,8 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
+	"net/http"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 // Client represents a YakAPI client
@@ -50,29 +48,38 @@ func (c *Client) Subscribe(streamNames []string) (<-chan Event, error) {
 }
 
 func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) error {
-	u, err := url.Parse(c.BaseURL)
+	url := fmt.Sprintf("%s/v1/stream/%s", c.BaseURL, streamName)
+
+	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("invalid base URL: %v", err)
+		return fmt.Errorf("HTTP GET error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	u.Scheme = "ws"
-	u.Path = fmt.Sprintf("/v1/stream/%s", streamName)
-
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		return fmt.Errorf("WebSocket dial error: %v", err)
-	}
-	defer conn.Close()
-
+	buf := make([]byte, 16*1024)
 	for {
-		_, message, err := conn.ReadMessage()
+		n, err := resp.Body.Read(buf)
 		if err != nil {
-			return fmt.Errorf("error reading WebSocket message: %v", err)
+			return fmt.Errorf("error reading chunk: %v", err)
+		}
+		if n == len(buf) {
+			return fmt.Errorf("chunk too large")
+		}
+		s := 0
+		for i := 0; i < n; i++ {
+			if buf[i] == '\n' {
+				s = i + 1
+				break
+			}
 		}
 
 		var data map[string]interface{}
-		if err := json.Unmarshal(message, &data); err != nil {
-			return fmt.Errorf("error unmarshaling message: %v", err)
+		if err := json.Unmarshal(buf[s:n], &data); err != nil {
+			return fmt.Errorf("error unmarshaling chunk: %v", err)
 		}
 
 		eventChan <- Event{StreamName: streamName, Data: data}
