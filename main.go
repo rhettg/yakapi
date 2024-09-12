@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rhettg/yakapi/client"
 	"github.com/rhettg/yakapi/internal/ci"
 	"github.com/rhettg/yakapi/internal/gds"
 	"github.com/rhettg/yakapi/internal/mw"
@@ -669,6 +670,7 @@ func runServer(cmd *cobra.Command, args []string) {
 
 func main() {
 	var logLevel string
+	var serverURL string
 
 	rootCmd := &cobra.Command{
 		Use:   "yakapi",
@@ -686,6 +688,7 @@ func main() {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Set the logging level (info or debug)")
+	rootCmd.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:8080", "Server URL to connect to")
 
 	promauto.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "yakapi_uptime_seconds",
@@ -726,8 +729,31 @@ func main() {
 		},
 	}
 
+	dumpCmd := &cobra.Command{
+		Use:   "dump [streams...]",
+		Short: "Dump events from specified streams",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				fmt.Println("Please specify at least one stream name")
+				return
+			}
+
+			c := client.NewClient(serverURL)
+			eventChan, err := c.Subscribe(args)
+			if err != nil {
+				slog.Error("Error subscribing to streams", "error", err)
+				return
+			}
+
+			for event := range eventChan {
+				fmt.Printf("%s: %v\n", event.StreamName, event.Data)
+			}
+		},
+	}
+
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(helloCmd)
+	rootCmd.AddCommand(dumpCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		slog.Error("Error executing root command", "error", err)
