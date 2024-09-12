@@ -1,3 +1,5 @@
 .env
 bin
 __pycache__
+go*.linux-amd64.tar.gz
+yakapi
