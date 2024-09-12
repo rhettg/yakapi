@@ -547,10 +547,18 @@ func setupSFCserver() *http.ServeMux {
 	*/
 
 	cvIn := make(chan sfc.ControlValue)
-	go sfcReadControlValues(context.Background(), cvIn)
+	go func() {
+		if err := sfcReadControlValues(context.Background(), cvIn); err != nil {
+			slog.Error("Error in sfcReadControlValues", "error", err)
+		}
+	}()
 
 	cvOut := make(chan sfc.ControlValue)
-	go sfcWriteControlValues(context.Background(), cvOut)
+	go func() {
+		if err := sfcWriteControlValues(context.Background(), cvOut); err != nil {
+			slog.Error("Error in sfcWriteControlValues", "error", err)
+		}
+	}()
 
 	handleWebSocket := func(w http.ResponseWriter, r *http.Request) {
 		sfc.HandleWebSocket(cvIn, cvOut, w, r)
