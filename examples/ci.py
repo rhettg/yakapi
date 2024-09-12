@@ -1,8 +1,7 @@
 import time
 import logging
 
-import yakapi
-
+from yakapi import Client
 
 def motor_a(client, power):
     client.publish("motor_a", {"power": power})
@@ -52,7 +51,7 @@ def apply_command(client, cmd, args):
 
 
 def main():
-    client = yakapi.Client("http://localhost:8080")
+    client = Client("http://localhost:8080")
 
     for _, event in client.subscribe(["ci"]):
         command = event.get("cmd")

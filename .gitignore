@@ -1,3 +1,8 @@
 .env
 bin
 __pycache__
+yakapi_package/yakapi.egg-info/
+examples/check_sys_path.py
+examples/print_sys_path.py
+examples/test_import.py
+examples/venv/

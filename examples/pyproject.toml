@@ -1,18 +1,18 @@
 [project]
 name = "examples"
 version = "0.1.0"
-description = "Add your description here"
+description = "yakapi example code"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "requests>=2.32.3",
-    "urllib3>=2.2.2",
-    "aiohttp>=3.10.5",
-    "python-ulid>=2.7.0",
+    "yakapi"
 ]
 
 line-length = 88
 indent-width = 4
+
+[tool.uv.sources]
+yakapi = { path = "../yakapi_package" }
 
 [format]
 # Like Black, use double quotes for strings.
