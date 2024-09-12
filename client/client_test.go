@@ -39,7 +39,9 @@ func TestClient(t *testing.T) {
 		}
 
 		// Close the connection after sending events
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
+			t.Fatalf("Failed to close WebSocket connection: %v", err)
+		}
 		wg.Done()
 	}))
 	defer server.Close()
