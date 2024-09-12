@@ -737,9 +737,9 @@ func main() {
 		},
 	}
 
-	dumpCmd := &cobra.Command{
-		Use:   "dump [streams...]",
-		Short: "Dump events from specified streams",
+	subCmd := &cobra.Command{
+		Use:   "sub [streams...]",
+		Short: "Subscribe to events from specified streams",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
 				fmt.Println("Please specify at least one stream name")
@@ -761,7 +761,7 @@ func main() {
 
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(helloCmd)
-	rootCmd.AddCommand(dumpCmd)
+	rootCmd.AddCommand(subCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		slog.Error("Error executing root command", "error", err)
