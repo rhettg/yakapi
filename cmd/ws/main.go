@@ -136,10 +136,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func handleVideo(w http.ResponseWriter, r *http.Request) {
 	log.Println("Serving video")
-	select {
-	case <-r.Context().Done():
-		return
-	}
+	<-r.Context().Done()
 }
 
 func main() {

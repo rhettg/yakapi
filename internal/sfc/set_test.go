@@ -49,8 +49,12 @@ func TestRegionMap(t *testing.T) {
 			var result map[string]interface{}
 			var expected map[string]interface{}
 
-			json.Unmarshal([]byte(jsonStr), &result)
-			json.Unmarshal([]byte(tc.expected), &expected)
+			if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+				t.Fatalf("Failed to unmarshal result JSON: %v", err)
+			}
+			if err := json.Unmarshal([]byte(tc.expected), &expected); err != nil {
+				t.Fatalf("Failed to unmarshal expected JSON: %v", err)
+			}
 
 			if !mapsEqual(result, expected) {
 				t.Errorf("Expected %s, but got %s", tc.expected, jsonStr)
