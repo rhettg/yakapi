@@ -1,6 +1,6 @@
 import time
 
-import yakapi
+from yakapi import Client
 
 
 def send_telemetry(client, key, value):
@@ -11,7 +11,7 @@ def send_telemetry(client, key, value):
 
 
 def main():
-    client = yakapi.Client("http://localhost:8080")
+    client = Client("http://localhost:8080")
 
     startTime = time.time()
     while True:
