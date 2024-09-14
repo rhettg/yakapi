@@ -331,6 +331,7 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 			{Name: "metrics", Ref: "/metrics"},
 			{Name: "ci", Ref: "/v1/ci"},
 			{Name: "cam", Ref: "/v1/cam/capture"},
+			{Name: "stream", Ref: "/v1/stream/"},
 		},
 	}
 

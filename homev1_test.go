@@ -61,6 +61,7 @@ func TestHomeV1Handler(t *testing.T) {
 		{Name: "metrics", Ref: "/metrics"},
 		{Name: "ci", Ref: "/v1/ci"},
 		{Name: "cam", Ref: "/v1/cam/capture"},
+		{Name: "stream", Ref: "/v1/stream/"},
 		{Name: "project", Ref: "https://test-project.com"},
 		{Name: "operator", Ref: "https://test-operator.com"},
 	}
