@@ -3,7 +3,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 )
@@ -82,8 +81,6 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 		if err := json.Unmarshal(buf[s:n], &data); err != nil {
 			return fmt.Errorf("error unmarshaling chunk: %v", err)
 		}
-
-		log.Printf("Unmarshaled data for stream %s: %+v", streamName, data)
 
 		eventChan <- Event{StreamName: streamName, Data: data}
 	}
