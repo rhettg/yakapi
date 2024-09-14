@@ -759,9 +759,43 @@ func main() {
 		},
 	}
 
+	pubCmd := &cobra.Command{
+		Use:   "pub [stream]",
+		Short: "Publish events to a specified stream",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			streamName := args[0]
+			data, _ := cmd.Flags().GetString("data")
+			c := client.NewClient(serverURL)
+
+			if data != "" {
+				err := c.Publish(streamName, []byte(data))
+				if err != nil {
+					slog.Error("Error publishing event", "error", err)
+					return
+				}
+			} else {
+				scanner := bufio.NewScanner(os.Stdin)
+				for scanner.Scan() {
+					err := c.Publish(streamName, scanner.Bytes())
+					if err != nil {
+						slog.Error("Error publishing event", "error", err)
+						return
+					}
+				}
+				if err := scanner.Err(); err != nil {
+					slog.Error("Error reading from stdin", "error", err)
+					return
+				}
+			}
+		},
+	}
+	pubCmd.Flags().StringP("data", "d", "", "Data to publish (if not provided, read from stdin)")
+
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(helloCmd)
 	rootCmd.AddCommand(subCmd)
+	rootCmd.AddCommand(pubCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		slog.Error("Error executing root command", "error", err)

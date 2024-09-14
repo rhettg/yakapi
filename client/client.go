@@ -1,9 +1,11 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -93,4 +95,26 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 
 		eventChan <- Event{StreamName: streamName, Data: data}
 	}
+}
+
+// Publish posts a single event to the specified stream
+func (c *Client) Publish(streamName string, data []byte) error {
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base URL: %v", err)
+	}
+
+	u.Path = fmt.Sprintf("/v1/stream/%s", streamName)
+
+	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("error posting event: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }

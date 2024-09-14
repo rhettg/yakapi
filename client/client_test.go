@@ -1,6 +1,7 @@
 package client
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -91,4 +92,53 @@ collectLoop:
 			t.Errorf("Event %d: expected message '%s', got '%v'", i, expectedMessages[i], event.Data["message"])
 		}
 	}
+}
+
+func TestPublish(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if !strings.HasPrefix(r.URL.Path, "/v1/stream/") {
+			t.Errorf("Invalid path: %s", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("Failed to read request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body) // Echo back the received data
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL)
+
+	t.Run("Publish with -d option", func(t *testing.T) {
+		data := []byte(`{"message": "Test event"}`)
+		err := client.Publish("test-stream", data)
+		if err != nil {
+			t.Fatalf("Failed to publish event: %v", err)
+		}
+	})
+
+	t.Run("Publish with invalid URL", func(t *testing.T) {
+		invalidClient := NewClient("http://invalid-url")
+		err := invalidClient.Publish("test-stream", []byte(`{"message": "Test event"}`))
+		if err == nil {
+			t.Fatal("Expected error for invalid URL, got nil")
+		}
+	})
+
+	t.Run("Publish with server error", func(t *testing.T) {
+		errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer errorServer.Close()
+
+		errorClient := NewClient(errorServer.URL)
+		err := errorClient.Publish("test-stream", []byte(`{"message": "Test event"}`))
+		if err == nil {
+			t.Fatal("Expected error for server error, got nil")
+		}
+	})
 }
