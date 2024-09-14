@@ -1,29 +1,26 @@
 package client
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 func TestClient(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Create a mock WebSocket server
+	// Create a mock HTTP server with chunked encoding
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		upgrader := websocket.Upgrader{}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			t.Fatalf("Failed to upgrade connection: %v", err)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatal("Expected http.ResponseWriter to be an http.Flusher")
 		}
-		defer conn.Close()
+
+		w.Header().Set("Transfer-Encoding", "chunked")
+		w.WriteHeader(http.StatusOK)
 
 		// Send two events
 		events := []map[string]interface{}{
@@ -32,24 +29,19 @@ func TestClient(t *testing.T) {
 		}
 
 		for _, event := range events {
-			err := conn.WriteJSON(event)
+			eventJSON, err := json.Marshal(event)
 			if err != nil {
-				t.Fatalf("Failed to write event: %v", err)
+				t.Fatalf("Failed to marshal event: %v", err)
 			}
+			fmt.Fprintf(w, "%s\n", eventJSON)
+			flusher.Flush()
 			time.Sleep(100 * time.Millisecond)
 		}
-
-		// Close the connection after sending events
-		if err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
-			t.Fatalf("Failed to close WebSocket connection: %v", err)
-		}
-		wg.Done()
 	}))
 	defer server.Close()
 
-	// Create a new client with WebSocket URL
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	client := NewClient(wsURL)
+	// Create a new client with the server URL
+	client := NewClient(server.URL)
 
 	// Subscribe to a stream
 	eventChan, err := client.Subscribe([]string{"test-stream"})
@@ -69,13 +61,13 @@ collectLoop:
 				break collectLoop
 			}
 			receivedEvents = append(receivedEvents, event)
+			if len(receivedEvents) == 2 {
+				break collectLoop
+			}
 		case <-timeout:
 			t.Fatal("Test timed out waiting for events")
 		}
 	}
-
-	// Wait for the server to finish and close the connection
-	wg.Wait()
 
 	// Check if we received the expected number of events
 	if len(receivedEvents) != 2 {

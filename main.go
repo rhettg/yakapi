@@ -754,7 +754,12 @@ func main() {
 			}
 
 			for event := range eventChan {
-				fmt.Printf("%s: %v\n", event.StreamName, event.Data)
+				d, err := json.Marshal(event.Data)
+				if err != nil {
+					slog.Error("Error marshaling event data", "error", err)
+					continue
+				}
+				fmt.Printf("%s: %s\n", event.StreamName, d)
 			}
 		},
 	}

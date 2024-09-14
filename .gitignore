@@ -3,3 +3,8 @@ bin
 __pycache__
 go*.linux-amd64.tar.gz
 yakapi
+yakapi_package/yakapi.egg-info/
+examples/check_sys_path.py
+examples/print_sys_path.py
+examples/test_import.py
+examples/venv/
