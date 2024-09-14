@@ -1,9 +1,11 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -62,10 +64,23 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	decoder := json.NewDecoder(resp.Body)
+	reader := bufio.NewReader(resp.Body)
 	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return fmt.Errorf("error reading chunk: %v", err)
+		}
+
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
 		var data map[string]interface{}
-		if err := decoder.Decode(&data); err != nil {
+		if err := json.Unmarshal(line, &data); err != nil {
 			return fmt.Errorf("error decoding JSON: %v", err)
 		}
 
