@@ -58,12 +58,19 @@ func Run(ctx context.Context, source chan Data) error {
 
 			slog.Debug("processing telemetry stream")
 			for key, value := range data {
-				valueStr, ok := value.(string)
-				if ok {
-					setMetric(key, valueStr)
-				} else {
-					slog.Warn("telemetry value is not a string", "key", key, "value", value)
+				var valueStr string
+				switch v := value.(type) {
+				case string:
+					valueStr = v
+				case int:
+					valueStr = strconv.Itoa(v)
+				case float64:
+					valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+				default:
+					slog.Warn("telemetry value is not a string, int, or float", "key", key, "value", value)
+					continue
 				}
+				setMetric(key, valueStr)
 			}
 		}
 	}
