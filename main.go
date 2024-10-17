@@ -593,7 +593,7 @@ func runServer(cmd *cobra.Command, args []string) {
 			}
 		}()
 
-		source := make(chan telemetry.Data)
+		source := make(chan telemetry.Data, 10)
 		go func() {
 			err := fetchTelemetryData(context.Background(), source)
 			if err != nil {
@@ -607,15 +607,21 @@ func runServer(cmd *cobra.Command, args []string) {
 			cachedTd := make(map[string]interface{})
 
 			var lastSSB time.Time
+			var lastSent time.Time
 
 			for {
-				td := <-source
+				var td telemetry.Data
+				select {
+				case td = <-source:
+				case <-time.After(1 * time.Second):
+					td = telemetry.Data{}
+				}
 
 				for key, value := range td {
-					if cachedTd[key] != value {
-						cachedTd[key] = value
-					} else {
+					if cachedTd[key] == value {
 						delete(td, key)
+					} else {
+						cachedTd[key] = value
 					}
 				}
 
@@ -625,15 +631,20 @@ func runServer(cmd *cobra.Command, args []string) {
 				}
 
 				if len(td) > 0 {
+					// Throttle
+					if !lastSent.IsZero() && time.Since(lastSent) < 1*time.Second {
+						time.Sleep(1 * time.Second)
+					}
+
 					err := c.SendTelemetry(context.Background(), td)
 					if err != nil {
 						slog.Error("error uploading telemetry to GDS", "error", err)
 					} else {
 						slog.Info("uploaded telemetry to GDS", "data", td)
 					}
-				}
 
-				time.Sleep(1 * time.Second)
+					lastSent = time.Now()
+				}
 			}
 		}()
 	}
