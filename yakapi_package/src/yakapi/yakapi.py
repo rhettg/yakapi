@@ -5,6 +5,7 @@ import queue
 import logging
 import json
 import ulid
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -23,26 +24,34 @@ class Client:
         logger.debug("Starting event loop")
         self.loop.run_forever()
 
-    def subscribe(self, stream_names):
+    def subscribe(self, stream_names, timeout_event=None):
         q = queue.Queue()
         asyncio.run_coroutine_threadsafe(
-            self._async_subscribe(stream_names, q), self.loop
+            self._async_subscribe(stream_names, q, timeout_event), self.loop
         )
+        last_event_time = time.time()
         while True:
-            yield q.get()
+            try:
+                event = q.get(timeout=0.1)
+                last_event_time = time.time()
+                yield event
+            except queue.Empty:
+                if timeout_event and time.time() - last_event_time > timeout_event:
+                    yield ("timeout", {"message": "Timeout occurred"})
+                    last_event_time = time.time()
 
-    async def _async_subscribe(self, stream_names, q):
+    async def _async_subscribe(self, stream_names, q, timeout_event):
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self._subscribe_with_retry(session, name, q) for name in stream_names
+                self._subscribe_with_retry(session, name, q, timeout_event) for name in stream_names
             ]
             await asyncio.gather(*tasks)
 
-    async def _subscribe_with_retry(self, session, stream_name, q):
+    async def _subscribe_with_retry(self, session, stream_name, q, timeout_event):
         retries = 0
         while True:
             try:
-                await self._subscribe_stream(session, stream_name, q)
+                await self._subscribe_stream(session, stream_name, q, timeout_event)
             except aiohttp.ClientError as e:
                 logger.error(f"Error subscribing to stream {stream_name}: {e}")
                 retries += 1
@@ -59,7 +68,7 @@ class Client:
                 logger.info(f"Subscription to {stream_name} cancelled")
                 return
 
-    async def _subscribe_stream(self, session, stream_name, q):
+    async def _subscribe_stream(self, session, stream_name, q, timeout_event):
         logger.debug(f"Subscribing to stream {stream_name}")
         async with session.get(
             f"{self.base_url}/v1/stream/{stream_name}", timeout=None
