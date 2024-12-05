@@ -1,9 +1,13 @@
 package client
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"sync"
 )
 
@@ -60,28 +64,48 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	buf := make([]byte, 16*1024)
+	reader := bufio.NewReader(resp.Body)
 	for {
-		n, err := resp.Body.Read(buf)
+		line, err := reader.ReadBytes('\n')
 		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return fmt.Errorf("error reading chunk: %v", err)
 		}
-		if n == len(buf) {
-			return fmt.Errorf("chunk too large")
-		}
-		s := 0
-		for i := 0; i < n; i++ {
-			if buf[i] == '\n' {
-				s = i + 1
-				break
-			}
+
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
 		}
 
 		var data map[string]interface{}
-		if err := json.Unmarshal(buf[s:n], &data); err != nil {
-			return fmt.Errorf("error unmarshaling chunk: %v", err)
+		if err := json.Unmarshal(line, &data); err != nil {
+			return fmt.Errorf("error decoding JSON: %v", err)
 		}
 
 		eventChan <- Event{StreamName: streamName, Data: data}
 	}
+}
+
+// Publish posts a single event to the specified stream
+func (c *Client) Publish(streamName string, data []byte) error {
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base URL: %v", err)
+	}
+
+	u.Path = fmt.Sprintf("/v1/stream/%s", streamName)
+
+	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("error posting event: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
