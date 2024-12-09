@@ -186,6 +186,12 @@ func StreamOut(ctx context.Context, w io.Writer, streamName string, sm *Manager)
 			if err != nil {
 				return errors.New("error writing data")
 			}
+
+			_, err = w.Write([]byte("\n"))
+			if err != nil {
+				return errors.New("error writing newline")
+			}
+
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			} else {
