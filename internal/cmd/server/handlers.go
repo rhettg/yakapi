@@ -350,6 +350,8 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Debug("stream in", "stream", streamName, "body", string(body))
+
 		err = stream.StreamIn(r.Context(), streamName, body, streamManager)
 		if err != nil {
 			http.Error(w, "Error streaming in", http.StatusInternalServerError)

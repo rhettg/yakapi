@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,7 +16,7 @@ type Client struct {
 // Event represents a YakAPI event
 type Event struct {
 	StreamName string
-	Data       map[string]interface{}
+	Data       []byte
 }
 
 // NewClient creates a new YakAPI client
@@ -69,19 +70,40 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 		if n == len(buf) {
 			return fmt.Errorf("chunk too large")
 		}
-		s := 0
-		for i := 0; i < n; i++ {
-			if buf[i] == '\n' {
-				s = i + 1
-				break
-			}
+
+		// HTTP chunk may end with a newline, so we need to trim it
+		s := n
+		if buf[s-1] == '\n' {
+			s--
 		}
 
-		var data map[string]interface{}
-		if err := json.Unmarshal(buf[s:n], &data); err != nil {
-			return fmt.Errorf("error unmarshaling chunk: %v", err)
-		}
-
-		eventChan <- Event{StreamName: streamName, Data: data}
+		eventChan <- Event{StreamName: streamName, Data: buf[:s]}
 	}
+}
+
+func (c *Client) Publish(streamName string, b []byte, contentType string) error {
+	url := fmt.Sprintf("%s/v1/stream/%s", c.BaseURL, streamName)
+
+	buf := bytes.NewBuffer(b)
+
+	resp, err := http.Post(url, contentType, buf)
+	if err != nil {
+		return fmt.Errorf("HTTP POST error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *Client) PublishJSON(streamName string, data interface{}) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("error marshaling data: %v", err)
+	}
+
+	return c.Publish(streamName, payload, "application/json")
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"gitlab.com/greyxor/slogor"
 
+	"github.com/rhettg/yakapi/internal/cmd/pub"
 	"github.com/rhettg/yakapi/internal/cmd/server"
 	"github.com/rhettg/yakapi/internal/cmd/sub"
 )
@@ -140,9 +141,27 @@ func main() {
 		},
 	}
 
+	pubCmd := &cobra.Command{
+		Use:   "pub",
+		Short: "Publish an event to a stream",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 1 {
+				fmt.Println("Please specify a stream name")
+				return
+			}
+
+			err := pub.DoPub(serverURL, args[0])
+			if err != nil {
+				slog.Error("Error publishing event", "error", err)
+				return
+			}
+		},
+	}
+
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(helloCmd)
 	rootCmd.AddCommand(subCmd)
+	rootCmd.AddCommand(pubCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		slog.Error("Error executing root command", "error", err)
