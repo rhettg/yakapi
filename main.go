@@ -101,8 +101,13 @@ func main() {
 		},
 	}
 
+	serverURLDefault := os.Getenv("YAKAPI_SERVER")
+	if serverURLDefault == "" {
+		serverURLDefault = "http://localhost:8080"
+	}
+
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Set the logging level (info or debug)")
-	rootCmd.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:8080", "Server URL to connect to")
+	rootCmd.PersistentFlags().StringVar(&serverURL, "server", serverURLDefault, "Server URL to connect to")
 
 	err := loadDotEnv()
 	if err != nil {
