@@ -22,5 +22,5 @@ jobs:
         go-version: '^1.23.0'
     - run: go build -o bin/yakapi.${{ github.sha }} .
     - run: scp -o 'StrictHostKeyChecking no' bin/* deploy@yak-prime:/data/yakapi
-    - run: ssh deploy@yak-prime "ln -sf /data/yakapi/yakapi.${{ github.sha }} /data/yakapi/yakapi.current && sudo /bin/systemctl restart yakapi"
+    - run: ssh deploy@yak-prime "chmod +x /data/yakapi/yakapi.${{ github.sha }} && ln -sf /data/yakapi/yakapi.${{ github.sha }} /data/yakapi/yakapi.current && sudo /bin/systemctl restart yakapi"
     - run: curl -v http://yak-prime/v1
