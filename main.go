@@ -17,12 +17,6 @@ import (
 	"github.com/rhettg/yakapi/internal/cmd/sub"
 )
 
-var startTime time.Time
-
-func init() {
-	startTime = time.Now()
-}
-
 func loadDotEnv() error {
 	// Open .env file
 	f, err := os.Open(".env")
