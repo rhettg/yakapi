@@ -77,7 +77,10 @@ func (c *Client) subscribeToStream(streamName string, eventChan chan<- Event) er
 			s--
 		}
 
-		eventChan <- Event{StreamName: streamName, Data: buf[:s]}
+		eventData := make([]byte, s)
+		copy(eventData, buf[:s])
+
+		eventChan <- Event{StreamName: streamName, Data: eventData}
 	}
 }
 

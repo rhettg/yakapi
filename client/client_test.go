@@ -31,13 +31,11 @@ func TestClient(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to marshal event: %v", err)
 			}
-			fmt.Fprintf(w, "%x\r\n%s\r\n", len(eventJSON), eventJSON)
+			fmt.Fprint(w, string(eventJSON))
 			flusher.Flush()
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		// End the chunked response
-		fmt.Fprintf(w, "0\r\n\r\n")
 		flusher.Flush()
 	}))
 	defer server.Close()
@@ -52,7 +50,7 @@ func TestClient(t *testing.T) {
 	}
 
 	// Collect events
-	var receivedEvents []Event
+	receivedEvents := make([]Event, 0)
 	timeout := time.After(2 * time.Second)
 
 collectLoop:
@@ -62,6 +60,7 @@ collectLoop:
 			if !ok {
 				break collectLoop
 			}
+			fmt.Printf("Received event: %s\n", string(event.Data))
 			receivedEvents = append(receivedEvents, event)
 		case <-timeout:
 			t.Fatal("Test timed out waiting for events")
@@ -79,8 +78,17 @@ collectLoop:
 		if event.StreamName != "test-stream" {
 			t.Errorf("Event %d: expected stream name 'test-stream', got '%s'", i, event.StreamName)
 		}
-		if msg, ok := event.Data["message"].(string); !ok || msg != expectedMessages[i] {
-			t.Errorf("Event %d: expected message '%s', got '%v'", i, expectedMessages[i], event.Data["message"])
+
+		var data map[string]interface{}
+
+		err := json.Unmarshal(event.Data, &data)
+		if err != nil {
+			t.Errorf("Event %d: failed to unmarshal event data: %v", i, err)
+			continue
+		}
+
+		if msg, ok := data["message"].(string); !ok || msg != expectedMessages[i] {
+			t.Errorf("Event %d: expected message '%s', got '%v'", i, expectedMessages[i], data["message"])
 		}
 	}
 }
