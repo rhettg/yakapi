@@ -78,10 +78,16 @@ func DoServer(cmd *cobra.Command, args []string) {
 				}
 
 				for key, value := range td {
-					if cachedTd[key] == value {
-						delete(td, key)
-					} else {
-						cachedTd[key] = value
+					// Type assert both values before comparison
+					switch v := value.(type) {
+					case string, int, int64, float64, bool:
+						if cachedValue, ok := cachedTd[key]; ok && cachedValue == v {
+							delete(td, key)
+						} else {
+							cachedTd[key] = v
+						}
+					default:
+						// Just skip caching complex types
 					}
 				}
 
