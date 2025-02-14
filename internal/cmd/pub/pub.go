@@ -18,10 +18,6 @@ func DoPub(serverURL string, stream string) error {
 			continue
 		}
 
-		if line[len(line)-1] == '\n' {
-			panic("new line!")
-			line = line[:len(line)-1]
-		}
 		err := c.Publish(stream, []byte(line), "text/plain")
 		if err != nil {
 			return err
