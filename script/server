@@ -5,6 +5,6 @@ script/build
 
 export YAKAPI_NAME="YakAPI (development)"
 export YAKAPI_PROJECT="https://github.com/rhettg/yakapi"
-export YAKAPI_CAM_CAPTURE_PATH="./testdata/mars.jpeg"
+export YAKAPI_GDS_API_URL=https://yakgds.taildefad.ts.net/v1/missions/7
 
 ./bin/yakapi server $@

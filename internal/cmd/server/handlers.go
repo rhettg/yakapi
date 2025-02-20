@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rhettg/yakapi/internal/ci"
 	"github.com/rhettg/yakapi/internal/gds"
 	"github.com/rhettg/yakapi/internal/stream"
 	"github.com/rhettg/yakapi/internal/telemetry"
@@ -25,7 +24,6 @@ var (
 	//go:embed assets/*
 	assets        embed.FS
 	streamManager *stream.Manager
-	ciResults     ci.ResultCollector
 )
 
 type resource struct {
@@ -102,73 +100,7 @@ func me(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleCI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		errorResponse(w, errors.New("POST required"), http.StatusMethodNotAllowed)
-		return
-	}
-
-	if r.Header.Get("content-type") != "application/json" {
-		errorResponse(w, errors.New("application/json required"), http.StatusUnsupportedMediaType)
-		return
-	}
-
-	waitForResult := false
-	if r.URL.Query().Get("wait") == "1" {
-		waitForResult = true
-	}
-
-	req := struct {
-		Command string `json:"command"`
-	}{}
-
-	err := json.NewDecoder(r.Body).Decode(&req)
-	defer r.Body.Close()
-
-	if err != nil {
-		slog.Error("failed parsing body", "error", err)
-		errorResponse(w, errors.New("failed parsing body"), http.StatusBadRequest)
-		return
-	}
-
-	msgID, err := ci.Accept(r.Context(), streamManager, req.Command)
-	if err != nil {
-		slog.Error("failed accepting ci command", "error", err)
-		errorResponse(w, err, http.StatusBadRequest)
-		return
-	}
-
-	var result ci.Result
-	result.ID = msgID
-
-	if waitForResult {
-		waitCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		for {
-			result = ciResults.FetchResult(msgID)
-			if result.ID != "" {
-				break
-			}
-			select {
-			case <-waitCtx.Done():
-				err = waitCtx.Err()
-				cancel()
-				slog.Error("failed fetching ci command result", "error", err)
-				errorResponse(w, err, http.StatusServiceUnavailable)
-				return
-			case <-time.After(50 * time.Millisecond):
-			}
-		}
-		cancel()
-	}
-
-	err = sendResponse(w, result, http.StatusAccepted)
-	if err != nil {
-		slog.Error("error sending response", "error", err)
-		return
-	}
-}
-
-func doGDSCI(ctx context.Context, c *gds.Client) error {
+func doGDSCI(ctx context.Context, c *gds.Client, sm *stream.Manager) error {
 	startTime := time.Now()
 
 	slog.Info("retrieving commands from GDS")
@@ -178,65 +110,25 @@ func doGDSCI(ctx context.Context, c *gds.Client) error {
 		return fmt.Errorf("failed to retreive notes: %w", err)
 	}
 
-	req := struct {
-		Command string `json:"command"`
-	}{}
+	s := sm.GetWriter("ci")
+	defer sm.ReturnWriter("ci")
 
 	for _, n := range notes {
-		// Reset our command
-		req.Command = ""
-
 		slog.Info("processing note", "file", n.File, "note", n.Note, "created_at", n.CreatedAt)
 		if n.File != "commands.qi" {
 			continue
 		}
 
-		err = json.Unmarshal([]byte(n.Body), &req)
-		if err != nil {
-			slog.Error("failed unmarshaling note", "error", err, "note", n.Note)
-			continue
+		select {
+		case s <- n.Body:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-
-		if req.Command == "" {
-			slog.Error("empty command", "note", n.Note)
-			continue
-		}
-
-		slog.Info("accepting command", "command", req.Command, "note", n.Note)
-		msgID, err := ci.Accept(ctx, streamManager, req.Command)
-		if err != nil {
-			slog.Error("failed accepting ci command", "error", err)
-			continue
-		}
-		slog.Info("accepted command", "command", req.Command, "command_id", msgID)
 	}
 
 	slog.Info("finished processing notes", "note_count", len(notes), "elapsed", time.Since(startTime))
 
 	return nil
-}
-
-func handleCamCapture(w http.ResponseWriter, r *http.Request) {
-	captureFile := os.Getenv("YAKAPI_CAM_CAPTURE_PATH")
-	if captureFile == "" {
-		err := errors.New("YAKAPI_CAM_CAPTURE_PATH not configured")
-		errorResponse(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	content, err := os.ReadFile(captureFile)
-	if err != nil {
-		errorResponse(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "image/jpeg")
-	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(content)
-	if err != nil {
-		slog.Error("error writing response", "error", err)
-		return
-	}
 }
 
 func parseCamPath(path string) string {
@@ -385,8 +277,8 @@ func homev1(w http.ResponseWriter, r *http.Request) {
 		UpTime:   int64(time.Since(startTime).Seconds()),
 		Resources: []resource{
 			{Name: "metrics", Ref: "/metrics"},
-			{Name: "ci", Ref: "/v1/ci"},
-			{Name: "cam", Ref: "/v1/cam/capture"},
+			{Name: "eyes", Ref: "/eyes"},
+			{Name: "eyes-api", Ref: "/v1/eyes/"},
 			{Name: "stream", Ref: "/v1/stream/"},
 		},
 	}

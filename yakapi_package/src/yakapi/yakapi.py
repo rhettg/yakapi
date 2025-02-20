@@ -43,7 +43,8 @@ class Client:
     async def _async_subscribe(self, stream_names, q, timeout_event):
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self._subscribe_with_retry(session, name, q, timeout_event) for name in stream_names
+                self._subscribe_with_retry(session, name, q, timeout_event)
+                for name in stream_names
             ]
             await asyncio.gather(*tasks)
 
@@ -79,12 +80,17 @@ class Client:
                 buffer += data
                 if end_of_http_chunk:
                     logger.debug("received chunk")
-                    event = json.loads(buffer.decode().strip())
+                    content = buffer.decode().strip()
+                    try:
+                        event = json.loads(content)
+                    except json.JSONDecodeError as e:
+                        print(f"failed to decode: {e}")
+                        event = content
                     q.put((stream_name, event))
                     buffer = b""
 
     def publish(self, stream_name, event):
-        if "id" not in event:
+        if isinstance(event, dict) and "id" not in event:
             event = dict(event)
             event["id"] = str(ulid.ULID())
         future = asyncio.run_coroutine_threadsafe(
@@ -95,6 +101,18 @@ class Client:
     async def _async_publish(self, stream_name, event):
         async with aiohttp.ClientSession() as session:
             url = f"{self.base_url}/v1/stream/{stream_name}"
-            async with session.post(url, json=event) as response:
+            headers = {}
+
+            if isinstance(event, str):
+                data = event
+                headers["Content-Type"] = "text/plain"
+            else:
+                if "id" not in event:
+                    event = dict(event)
+                    event["id"] = str(ulid.ULID())
+                data = json.dumps(event)
+                headers["Content-Type"] = "application/json"
+
+            async with session.post(url, data=data, headers=headers) as response:
                 response.raise_for_status()
                 return None

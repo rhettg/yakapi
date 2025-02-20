@@ -1,4 +1,4 @@
-FROM golang:1.22
+FROM golang:1.23
 
 WORKDIR /usr/src/yakapi
 
@@ -12,4 +12,5 @@ RUN go build -v -o /usr/local/bin/yakapi .
 ENV YAKAPI_NAME="Yak Bot"
 ENV YAKAPI_PROJECT_URL="https://github.com/The-Yak-Collective/yakrover"
 
-CMD ["yakapi"]
+ENTRYPOINT [ "yakapi" ]
+CMD [ "server" ]

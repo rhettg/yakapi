@@ -45,7 +45,7 @@ func DoServer(cmd *cobra.Command, args []string) {
 		go func() {
 			c := gds.New(os.Getenv("YAKAPI_GDS_API_URL"))
 			for {
-				err := doGDSCI(context.Background(), c)
+				err := doGDSCI(context.Background(), c, streamManager)
 				if err != nil {
 					slog.Error("error running GDS CI", "error", err)
 				}
@@ -131,13 +131,6 @@ func DoServer(cmd *cobra.Command, args []string) {
 	}()
 
 	go func() {
-		err := ciResults.Collect(context.Background(), streamManager)
-		if err != nil {
-			slog.Error("error running ci results collector", "error", err)
-		}
-	}()
-
-	go func() {
 		port := 8765
 		sfcMux := setupSFCserver()
 		slog.Info("starting sfc", "version", "1.0.0", "port", port, "build", Revision)
@@ -175,7 +168,6 @@ func setupServer() *http.ServeMux {
 	mux.Handle("/", wrapper(http.HandlerFunc(home)))
 	mux.Handle("/v1", wrapper(http.HandlerFunc(homev1)))
 	mux.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
-	mux.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
 	mux.Handle("/v1/eyes/", http.HandlerFunc(handleStreamEyes))
 	mux.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
 	mux.Handle("/metrics", wrapper(promhttp.Handler()))

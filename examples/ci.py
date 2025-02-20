@@ -3,17 +3,17 @@ import logging
 
 from yakapi import Client
 
+
 def motor_a(client, power):
-    client.publish("motor_a", {"power": power})
+    client.publish("motor_a", str(power))
 
 
 def motor_b(client, power):
-    client.publish("motor_b", {"power": power})
+    client.publish("motor_b", str(power))
 
 
 def apply_command(client, cmd, args):
     cmd = cmd.strip().lower()
-    args = args.split(" ")
 
     if cmd == "quit":
         return None
@@ -54,17 +54,20 @@ def main():
     client = Client("http://localhost:8080")
 
     for _, event in client.subscribe(["ci"]):
-        command = event.get("cmd")
-        args = event.get("args", "")
-        result = {"id": event["id"]}
+        logging.debug("Received event: '%s'", event)
+        command = event.get("command")
+        # Parse the command like "FWD 100" into cmd and ["100"]
+        cmd, *args = command.split(" ")
 
-        print(f"Processing {command} {args}... ", end="", flush=True)
+        # result = {"id": event["id"]}
+
+        print(f"Processing {cmd} {args}... ", end="", flush=True)
         try:
-            next_delay = apply_command(client, command, args)
+            next_delay = apply_command(client, cmd, args)
         except Exception as e:
-            print(f"error: {e}")
-            result["error"] = str(e)
-            client.publish("ci:result", result)
+            logging.exception("Error in command")
+            # result["error"] = str(e)
+            # client.publish("ci:result", result)
             continue
 
         if next_delay is None:
@@ -77,8 +80,8 @@ def main():
         motor_b(client, 0)
         print("ok")
 
-        result["result"] = "ok"
-        client.publish("ci:result", result)
+        # result["result"] = "ok"
+        # client.publish("ci:result", result)
 
 
 if __name__ == "__main__":

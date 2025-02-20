@@ -59,8 +59,8 @@ func TestHomeV1Handler(t *testing.T) {
 	// Check the resources
 	expectedResources := []resource{
 		{Name: "metrics", Ref: "/metrics"},
-		{Name: "ci", Ref: "/v1/ci"},
-		{Name: "cam", Ref: "/v1/cam/capture"},
+		{Name: "eyes", Ref: "/eyes"},
+		{Name: "eyes-api", Ref: "/v1/eyes/"},
 		{Name: "stream", Ref: "/v1/stream/"},
 		{Name: "project", Ref: "https://test-project.com"},
 		{Name: "operator", Ref: "https://test-operator.com"},
