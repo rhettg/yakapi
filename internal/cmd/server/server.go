@@ -176,7 +176,7 @@ func setupServer() *http.ServeMux {
 	mux.Handle("/v1", wrapper(http.HandlerFunc(homev1)))
 	mux.Handle("/v1/me", wrapper(http.HandlerFunc(me)))
 	mux.Handle("/v1/ci", wrapper(http.HandlerFunc(handleCI)))
-	mux.Handle("/v1/cam/capture", wrapper(http.HandlerFunc(handleCamCapture)))
+	mux.Handle("/v1/eyes/", http.HandlerFunc(handleStreamEyes))
 	mux.Handle("/v1/stream/", wrapper(http.HandlerFunc(handleStream)))
 	mux.Handle("/metrics", wrapper(promhttp.Handler()))
 	mux.Handle("/eyes", wrapper(http.HandlerFunc(eyes)))

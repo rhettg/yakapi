@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -236,6 +237,140 @@ func handleCamCapture(w http.ResponseWriter, r *http.Request) {
 		slog.Error("error writing response", "error", err)
 		return
 	}
+}
+
+func parseCamPath(path string) string {
+	remaining, found := strings.CutPrefix(path, "/v1/eyes/")
+	if found {
+		return remaining
+	}
+	return ""
+}
+
+func hijackStream(w http.ResponseWriter, r *http.Request, s stream.StreamChan) {
+	// At the start of the handler, get the underlying hijacked connection
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		slog.Error("webserver doesn't support hijacking")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	conn, bufrw, err := hj.Hijack()
+	if err != nil {
+		slog.Error("failed to hijack connection", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+
+	// Write headers
+	fmt.Fprintf(bufrw, "HTTP/1.1 200 OK\r\n")
+	fmt.Fprintf(bufrw, "Content-Type: multipart/x-mixed-replace; boundary=YAKFRAME\r\n")
+	fmt.Fprintf(bufrw, "Cache-Control: no-cache\r\n")
+	fmt.Fprintf(bufrw, "Connection: keep-alive\r\n")
+	fmt.Fprintf(bufrw, "Pragma: no-cache\r\n\r\n")
+
+	//fmt.Fprintf(bufrw, "--YAKFRAME\r\n\r\n")
+	fmt.Fprintf(bufrw, "--YAKFRAME\r\n")
+	bufrw.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case data, ok := <-s:
+			if !ok {
+				return
+			}
+
+			imageData, err := base64.StdEncoding.DecodeString(string(data))
+			if err != nil {
+				slog.Error("failed to decode base64 image", "error", err)
+				continue
+			}
+			fmt.Fprintf(bufrw, "Content-Type: image/jpeg\r\n")
+			fmt.Fprintf(bufrw, "Content-Length: %d\r\n", len(imageData))
+			fmt.Fprintf(bufrw, "\r\n")
+			bufrw.Write(imageData)
+
+			fmt.Fprintf(bufrw, "\r\n--YAKFRAME\r\n")
+
+			// This is crazy, but sending the image twice seems to be the only
+			// way to get browsers to show the image immediately. Otherwise, it
+			// seems to want to wait until the next one is available.
+			fmt.Fprintf(bufrw, "Content-Type: image/jpeg\r\n")
+			fmt.Fprintf(bufrw, "Content-Length: %d\r\n", len(imageData))
+			fmt.Fprintf(bufrw, "\r\n")
+			bufrw.Write(imageData)
+			fmt.Fprintf(bufrw, "\r\n--YAKFRAME\r\n")
+
+			bufrw.Flush()
+			slog.Info("eyes frame sent", "frame_size", len(imageData))
+		}
+	}
+}
+
+func handleStreamEyes(w http.ResponseWriter, r *http.Request) {
+	streamName := parseCamPath(r.URL.Path)
+	if streamName == "" {
+		slog.Warn("invalid camera stream path", "path", r.URL.Path)
+		http.Error(w, "Invalid camera stream path", http.StatusBadRequest)
+		return
+	}
+
+	stream := streamManager.GetReader(streamName)
+	defer streamManager.ReturnReader(streamName, stream)
+
+	hijackStream(w, r, stream)
+
+	/*
+		w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Pragma", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		mw := multipart.NewWriter(w)
+		mw.SetBoundary("frame")
+		defer mw.Close()
+
+		header := make(textproto.MIMEHeader)
+		header.Add("Content-Type", "image/jpeg")
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case data, ok := <-stream:
+				if !ok {
+					return
+				}
+
+				imageData, err := base64.StdEncoding.DecodeString(string(data))
+				if err != nil {
+					slog.Error("failed to decode base64 image", "error", err)
+					continue
+				}
+
+				pw, _ := mw.CreatePart(header)
+				_, err = pw.Write(imageData)
+				if err != nil {
+					slog.Error("failed to write image data", "error", err)
+					continue
+				}
+
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				} else {
+					slog.Warn("flusher not supported")
+				}
+				slog.Info("eyes frame sent", "stream", streamName, "frame_size", len(imageData))
+			}
+		}
+	*/
 }
 
 func homev1(w http.ResponseWriter, r *http.Request) {
